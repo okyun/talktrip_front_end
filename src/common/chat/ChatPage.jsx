@@ -41,6 +41,11 @@ const ChatPage = () => {
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false); // WebSocket 연결 상태
   const [failedMessages, setFailedMessages] = useState([]); // 실패한 메시지들
   const [currentRoomInfo, setCurrentRoomInfo] = useState(null); // 현재 선택된 채팅방 정보
+  
+  // 무한 스크롤 관련 상태
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState(null);
   const stompClientRef = useRef(null);
   const subscriptionsRef = useRef(new Set());
   const isSubscriptionSetupRef = useRef(false); // 구독 설정 완료 플래그
@@ -147,15 +152,15 @@ const ChatPage = () => {
         console.log('🔄 WebSocket 생성 중... URL:', brokerWsUrl);
         const socketFactory = () => {
           const socket = new WebSocket(brokerWsUrl);
-          socket.onopen = () => {
+        socket.onopen = () => {
             console.log('✅ WebSocket 연결 성공');
-          };
-          socket.onclose = (event) => {
+        };
+        socket.onclose = (event) => {
             console.log('❌ WebSocket 연결 닫힘:', event.code, event.reason);
-          };
-          socket.onerror = (error) => {
+        };
+        socket.onerror = (error) => {
             console.error('❌ WebSocket 에러:', error);
-          };
+        };
           return socket;
         };
         console.log('✅ WebSocket 팩토리 준비 완료');
@@ -260,22 +265,12 @@ const ChatPage = () => {
     };
   }, []);
 
-  // 메시지를 받았을 때 그 방만 다시 불러오기
+  // 메시지를 받았을 때 채팅방 목록 새로고침 (간소화)
   const updateSingleRoom = async (roomId) => {
     try {
-      console.log(`🔄 채팅방 ${roomId} 업데이트 시작`);
-      const res = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}`);
-      console.log(`📨 채팅방 ${roomId} 업데이트 응답:`, res.data);
-      
-      setRooms(prev => 
-        prev.map(r => {
-          if (r.id === roomId) {
-            console.log(`🔄 채팅방 ${roomId} 업데이트 완료:`, res.data);
-            return { ...r, ...res.data };
-          }
-          return r;
-        })
-      );
+      console.log(`🔄 채팅방 ${roomId} 업데이트 - 전체 목록 새로고침`);
+      // 전체 채팅방 목록을 새로고침
+      fetchChatRooms();
     } catch (error) {
       console.error(`❌ 채팅방 ${roomId} 업데이트 실패:`, error);
     }
@@ -554,7 +549,7 @@ const ChatPage = () => {
             } catch (e) {
               console.error('❌ 메시지 구독 파싱 실패:', e, message?.body);
             }
-          });
+        });
         
         console.log(`✅ 메시지 구독 성공: /topic/chat/room/${room.id}`);
         console.log(`📡 구독 객체:`, messageSubscription);
@@ -769,35 +764,55 @@ const ChatPage = () => {
     return null;
   }, [roomId, rooms]);
 
-  // API에서 채팅방 목록 가져오기
-  useEffect(() => {
-    const fetchChatRooms = async () => {
+  // 채팅방 목록 로드 함수 (페이지네이션 지원)
+  const fetchChatRooms = async (cursor = null, isLoadMore = false) => {
+    if (isLoadMore && isLoadingMore) return; // 중복 요청 방지
+    
+    try {
+      if (isLoadMore) {
+        setIsLoadingMore(true);
+      }
+      
       console.log('=== API 호출 시작 ===');
       console.log('호출 URL: /api/chat/me/chatRooms');
+      console.log('커서:', cursor);
+      console.log('추가 로드:', isLoadMore);
       
-      try {
-        const response = await axiosInstance.get('/api/chat/me/chatRooms');  // axiosInstance 사용
-        console.log('=== 채팅방 목록 API 응답 전체 ===');
-        console.log('전체 응답 객체:', response);
-        console.log('응답 상태:', response.status);
-        console.log('응답 헤더:', response.headers);
-        console.log('=== 응답 데이터 상세 분석 ===');
-        console.log('응답 데이터:', response.data);
-        console.log('응답 데이터 타입:', typeof response.data);
-        console.log('응답 데이터 길이:', response.data?.length);
-        console.log('응답 데이터 JSON 구조:');
-        console.log(JSON.stringify(response.data, null, 2));
+      const params = new URLSearchParams();
+      params.append('limit', '25'); // 25개씩 로드
+      if (cursor) {
+        params.append('cursor', cursor);
+      }
+      
+      const response = await axiosInstance.get(`/api/chat/me/chatRooms?${params.toString()}`);  // axiosInstance 사용
+      console.log('=== 채팅방 목록 API 응답 전체 ===');
+      console.log('전체 응답 객체:', response);
+      console.log('응답 상태:', response.status);
+      console.log('응답 헤더:', response.headers);
+      console.log('=== 응답 데이터 상세 분석 ===');
+      console.log('응답 데이터:', response.data);
+      console.log('응답 데이터 타입:', typeof response.data);
+      console.log('응답 데이터 JSON 구조:');
+      console.log(JSON.stringify(response.data, null, 2));
         
-        // API 응답 데이터가 있고 배열인 경우에만 사용
-        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-          console.log('API 데이터로 업데이트:', response.data);
+      // 페이지네이션 응답 구조 처리 (SliceResponse: items, nextCursor, hasNext)
+      if (response.data && response.data.items && Array.isArray(response.data.items)) {
+        const { items, nextCursor, hasNext } = response.data;
+        console.log('페이지네이션 응답:', { items: items.length, nextCursor, hasNext });
+        
+        // 페이지네이션 상태 업데이트
+        setNextCursor(nextCursor);
+        setHasNextPage(hasNext);
+        
+        if (items.length > 0) {
+          console.log('페이지네이션 데이터로 업데이트:', items);
           // API 데이터의 id 필드 확인
-          console.log('첫 번째 방의 id:', response.data[0]?.id);
-          console.log('첫 번째 방의 roomId:', response.data[0]?.roomId);
-          console.log('첫 번째 방의 모든 필드:', Object.keys(response.data[0] || {}));
+          console.log('첫 번째 방의 id:', items[0]?.id);
+          console.log('첫 번째 방의 roomId:', items[0]?.roomId);
+          console.log('첫 번째 방의 모든 필드:', Object.keys(items[0] || {}));
           
           // API 데이터의 필드명을 통일 (roomId를 id로 매핑)
-          const processedData = response.data.map((room, index) => {
+          const processedData = items.map((room, index) => {
             // 각 방의 원본 데이터 상세 로그
             console.log(`=== 방 ${index + 1} 상세 분석 ===`);
             console.log(`방 ${index + 1} 원본 데이터 전체:`, room);
@@ -876,73 +891,20 @@ const ChatPage = () => {
           console.log('🔍 첫 번째 방의 notReadMessageCount:', sortedData[0]?.notReadMessageCount);
           console.log('🔍 첫 번째 방의 notReadMessageCount 타입:', typeof sortedData[0]?.notReadMessageCount);
           console.log('🔍 첫 번째 방의 notReadMessageCount > 0:', sortedData[0]?.notReadMessageCount > 0);
-          setRooms(sortedData);
-        } else if (response.data && response.data.content && Array.isArray(response.data.content)) {
-          // 페이지네이션 응답 구조인 경우
-          console.log('페이지네이션 데이터로 업데이트:', response.data.content);
-          console.log('첫 번째 방의 id:', response.data.content[0]?.id);
-          console.log('첫 번째 방의 roomId:', response.data.content[0]?.roomId);
-          console.log('첫 번째 방의 모든 필드:', Object.keys(response.data.content[0] || {}));
           
-          // API 데이터의 필드명을 통일 (roomId를 id로 매핑)
-          const processedData = response.data.content.map((room, index) => {
-            // 각 방의 원본 데이터 상세 로그
-            console.log(`페이지네이션 방 ${index + 1} 원본 데이터:`, room);
-            console.log(`페이지네이션 방 ${index + 1} 모든 키:`, Object.keys(room));
-            console.log(`페이지네이션 방 ${index + 1} notReadMessageCount 관련 필드들:`, {
-              notReadMessageCount: room.notReadMessageCount,
-              unreadCount: room.unreadCount,
-              not_read_message_count: room.not_read_message_count,
-              unread_count: room.unread_count,
-              notReadCount: room.notReadCount,
-              unReadMessageCount: room.unReadMessageCount
-            });
-            
-            // lastMessage 관련 필드들 상세 로그 (페이지네이션)
-            console.log(`페이지네이션 방 ${index + 1} lastMessage 관련 필드들:`, {
-              lastMessage: room.lastMessage,
-              lastMsg: room.lastMsg,
-              recentMessage: room.recentMessage,
-              last_message: room.last_message,
-              recent_message: room.recent_message,
-              latestMessage: room.latestMessage
-            });
-            
-            const mappedRoom = {
-            ...room,
-              id: room.roomId || room.id, // roomId가 있으면 id로 사용, 없으면 기존 id 사용
-              title: room.title || room.roomName || room.name || `채팅방 ${room.roomId || room.id}`, // title 필드 매핑
-              lastMessage: room.lastMessage || room.lastMsg || room.recentMessage || room.last_message || room.recent_message || room.latestMessage || '메시지가 없습니다', // lastMessage 필드 매핑
-              updatedAt: formatDate(room.updatedAt || room.lastMessageTime || room.modifiedAt || new Date()), // 날짜 필드 매핑
-              notReadMessageCount: room.notReadMessageCount || room.unreadCount || room.not_read_message_count || room.unread_count || room.notReadCount || room.unReadMessageCount || 0 // API에서 받은 값 사용, 없으면 0
-            };
-            
-            console.log(`페이지네이션 방 ${index + 1} 매핑 후:`, {
-              id: mappedRoom.id,
-              title: mappedRoom.title,
-              lastMessage: mappedRoom.lastMessage,
-              notReadMessageCount: mappedRoom.notReadMessageCount
-            });
-            
-            return mappedRoom;
-          });
-          // updatedAt 내림차순으로 정렬
-          const sortedData = processedData.sort((a, b) => {
-            const dateA = new Date(a.updatedAt);
-            const dateB = new Date(b.updatedAt);
-            return dateB - dateA; // 내림차순 (최신순)
-          });
-          
-          console.log('처리된 페이지네이션 데이터:', sortedData);
-          console.log('첫 번째 방 페이지네이션 처리 결과:', {
-            id: sortedData[0]?.id,
-            title: sortedData[0]?.title,
-            lastMessage: sortedData[0]?.lastMessage,
-            updatedAt: sortedData[0]?.updatedAt,
-            notReadMessageCount: sortedData[0]?.notReadMessageCount
-          });
-          setRooms(sortedData);
-        } else {
+          // 첫 페이지인지 추가 페이지인지에 따라 다르게 처리
+          if (isLoadMore) {
+            // 추가 페이지 - 기존 목록에 추가
+            setRooms(prevRooms => [...prevRooms, ...sortedData]);
+            console.log('🔄 추가 페이지 로드 완료, 새로 추가된 방 개수:', sortedData.length);
+          } else {
+            // 첫 페이지 - 전체 교체
+            setRooms(sortedData);
+            console.log('🔄 첫 페이지 로드 완료, 총 방 개수:', sortedData.length);
+          }
+        }
+      } else if (!isLoadMore) {
+          // 첫 페이지인데 데이터가 없는 경우만 더미 데이터 사용
           console.log('API 응답이 배열이 아니거나 비어있어서 더미 데이터를 사용합니다.');
           console.log('API 응답 상태:', {
             hasData: !!response.data,
@@ -966,10 +928,40 @@ const ChatPage = () => {
         console.error('에러 상세:', error.response?.data);
         console.error('에러 상태:', error.response?.status);
         console.error('에러 URL:', error.config?.url);
-        // 에러 발생 시 더미 데이터 유지
+        
+        if (!isLoadMore) {
+          // 첫 페이지 로드 실패 시에만 더미 데이터 사용
+          console.log('첫 페이지 로드 실패 - 더미 데이터 사용');
+          setRooms(dummyRooms);
+        }
+      } finally {
+        if (isLoadMore) {
+          setIsLoadingMore(false);
+        }
       }
     };
 
+  // 무한 스크롤 핸들러
+  const handleLoadMore = () => {
+    if (hasNextPage && !isLoadingMore && nextCursor) {
+      console.log('🔄 무한 스크롤 - 추가 데이터 로드 시작');
+      fetchChatRooms(nextCursor, true);
+    }
+  };
+
+  // 스크롤 이벤트 핸들러
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+    
+    // 90% 스크롤 시 다음 페이지 로드
+    if (scrollPercentage >= 0.9 && hasNextPage && !isLoadingMore) {
+      handleLoadMore();
+    }
+  };
+
+  // 초기 채팅방 목록 로드
+  useEffect(() => {
     fetchChatRooms();
   }, []);
 
@@ -994,13 +986,27 @@ const ChatPage = () => {
     // 해당 채팅방 찾기
     const room = rooms.find(r => r.id === roomId);
     if (room && room.notReadMessageCount > 0) {
-      // 즉시 UI 업데이트
-      setRooms(prevRooms => 
-        prevRooms.map(room => 
-          room.id === roomId ? { ...room, notReadMessageCount: 0 } : room
-        )
-      );
-      console.log(`채팅방 ${roomId} 읽음 처리 완료`);
+      try {
+        // 백엔드 API 호출하여 읽음 처리
+        const { markRoomAsRead } = await import('../api/chatApi');
+        await markRoomAsRead(roomId);
+        
+        // 즉시 UI 업데이트
+        setRooms(prevRooms => 
+          prevRooms.map(room => 
+            room.id === roomId ? { ...room, notReadMessageCount: 0 } : room
+          )
+        );
+        console.log(`채팅방 ${roomId} 읽음 처리 완료`);
+      } catch (error) {
+        console.error('채팅방 읽음 처리 실패:', error);
+        // 에러가 발생해도 UI는 업데이트 (사용자 경험 개선)
+        setRooms(prevRooms => 
+          prevRooms.map(room => 
+            room.id === roomId ? { ...room, notReadMessageCount: 0 } : room
+          )
+        );
+      }
     }
   };
 
@@ -1017,12 +1023,12 @@ const ChatPage = () => {
         setRooms(prev => prev.filter(r => r.id !== id));
         console.log('채팅방 목록에서 제거 완료:', id);
         // 현재 보고 있던 방이면 목록으로 이동
-        if (id === roomId) {
-          if (location.pathname.startsWith('/admin')) {
-            navigate('/admin/chat');
-          } else {
-            navigate('/chat');
-          }
+    if (id === roomId) {
+      if (location.pathname.startsWith('/admin')) {
+        navigate('/admin/chat');
+      } else {
+        navigate('/chat');
+      }
         }
       } else {
         console.warn('예상치 못한 상태 코드:', res.status);
@@ -1067,7 +1073,7 @@ const ChatPage = () => {
             </span>
           )}
         </div>
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
           <ul>
             {rooms.map((room, index) => {
               console.log(`🔍 렌더링 중인 방 ${index + 1}:`, {
@@ -1106,13 +1112,13 @@ const ChatPage = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center">
-                          <span className="font-medium truncate text-gray-900 font-semibold">{room.title}</span>
+                    <span className="font-medium truncate text-gray-900 font-semibold">{room.title}</span>
                           {room.roomType === 'GROUP' && (
                             <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full flex-shrink-0">
                               그룹
-                            </span>
-                          )}
-                        </div>
+                      </span>
+                    )}
+                  </div>
                       </div>
                     </div>
                     {Number(room.notReadMessageCount) > 0 && (
@@ -1145,6 +1151,26 @@ const ChatPage = () => {
               </li>
               );
             })}
+            
+            {/* 무한 스크롤 로딩 인디케이터 */}
+            {isLoadingMore && (
+              <li className="px-4 py-3 text-center text-gray-500">
+                <div className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  채팅방 목록 로드 중...
+                </div>
+              </li>
+            )}
+            
+            {/* 더 이상 로드할 데이터가 없는 경우 */}
+            {!hasNextPage && rooms.length > 25 && (
+              <li className="px-4 py-2 text-center text-gray-400 text-sm">
+                모든 채팅방을 불러왔습니다
+              </li>
+            )}
           </ul>
         </div>
       </aside>

@@ -109,7 +109,8 @@ const GroupChatPage = () => {
   useEffect(() => {
     const fetchGroupRooms = async () => {
       try {
-        const res = await axiosInstance.get('/api/chat/me/groupRooms');
+        // roomType=GROUP 파라미터로 그룹채팅만 필터링
+        const res = await axiosInstance.get('/api/chat/me/chatRooms/all?roomType=GROUP');
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           const mapped = res.data.map((room) => ({
             ...room,
@@ -122,7 +123,9 @@ const GroupChatPage = () => {
           setRooms(mapped.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
           return;
         }
-      } catch (_) {}
+      } catch (error) {
+        console.error('그룹채팅방 목록 조회 실패:', error);
+      }
       // fallback to dummy
       setRooms(dummyGroupRooms);
     };
@@ -133,8 +136,32 @@ const GroupChatPage = () => {
 
   const unreadCount = Array.isArray(rooms) ? rooms.filter(r => Number(r.notReadMessageCount) > 0).length : 0;
 
-  const handleRoomClick = (id) => {
-    setRooms(prev => prev.map(r => r.id === id ? { ...r, notReadMessageCount: 0 } : r));
+  const handleRoomClick = async (id) => {
+    // 그룹채팅에서도 읽음 처리
+    const room = rooms.find(r => r.id === id);
+    if (room && room.notReadMessageCount > 0) {
+      try {
+        // 백엔드 API 호출하여 읽음 처리
+        const { markRoomAsRead } = await import('../api/chatApi');
+        await markRoomAsRead(id);
+        
+        // 즉시 UI 업데이트
+        setRooms(prevRooms => 
+          prevRooms.map(room => 
+            room.id === id ? { ...room, notReadMessageCount: 0 } : room
+          )
+        );
+        console.log(`그룹채팅방 ${id} 읽음 처리 완료`);
+      } catch (error) {
+        console.error('그룹채팅방 읽음 처리 실패:', error);
+        // 에러가 발생해도 UI는 업데이트 (사용자 경험 개선)
+        setRooms(prevRooms => 
+          prevRooms.map(room => 
+            room.id === id ? { ...room, notReadMessageCount: 0 } : room
+          )
+        );
+      }
+    }
   };
 
   const selectedRoom = useMemo(() => {
