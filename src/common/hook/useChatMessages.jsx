@@ -78,36 +78,15 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
       setLoading(true);
       setError(null);
       
-      console.log(`🚀 첫 렌더링 최적화 - 채팅방 정보와 메시지 한 번에 로드 - roomId: ${roomId}`);
-      // includeMessages=true로 채팅방 정보와 최신 메시지를 한 번의 API 호출로 가져오기
-      const response = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}?includeMessages=true&limit=50`);
+      console.log(`🚀 첫 페이지 메시지 로드 - roomId: ${roomId}`);
+      // includeMessages=true로 첫 페이지 메시지를 가져오기
+      const response = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?includeMessages=true&limit=50`);
       
-      console.log('📨 통합 초기 응답:', response.data);
-      console.log('📨 응답 구조 분석:', {
-        hasRoom: !!response.data.room,
-        roomKeys: response.data.room ? Object.keys(response.data.room) : [],
-        roomTitle: response.data.room?.title,
-        roomId: response.data.room?.roomId,
-        hasMessages: !!response.data.messages,
-        messageKeys: response.data.messages ? Object.keys(response.data.messages) : []
-      });
+      console.log('📨 첫 페이지 메시지 응답:', response.data);
       
       if (response.data) {
-        // 응답 구조: { room: {...}, messages: { items: [...], hasNext: ... } }
-        const { room = {}, messages: messageData = {} } = response.data;
-        const { items = [], hasNext = false } = messageData;
-        
-        // room 객체에서 필요한 정보를 추출하여 roomInfo 구성
-        const roomInfo = {
-          id: room.roomId,
-          roomId: room.roomId,
-          title: room.title,
-          productId: room.productId,
-          ownerEmail: room.ownerEmail,
-          memberCount: room.memberCount,
-          participants: room.participants,
-          myLastReadAt: room.myLastReadAt
-        };
+        // 응답 구조: SliceResponse<ChatMemberRoomWithMessageDto>
+        const { items = [], nextCursor = null, hasNext = false } = response.data;
         
         // 서버에서 DESC로 정렬되어 온 메시지를 ASC로 뒤집어서 표시 (오래된 것부터)
         const sortedMessages = items
@@ -117,28 +96,41 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
           }))
           .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
         
-        console.log(`✅ 통합 로드 완료 - 메시지 ${sortedMessages.length}개, 채팅방 정보:`, roomInfo);
+        console.log(`✅ 첫 페이지 로드 완료 - 메시지 ${sortedMessages.length}개`);
         console.log('📊 정렬된 메시지:', sortedMessages);
         
         setMessages(sortedMessages);
-        setNextCursor(null); // nextCursor가 없으므로 null로 설정
+        setNextCursor(nextCursor);
         setHasNext(hasNext);
-        setRoomInfo(roomInfo); // 로컬 상태에도 저장
-        console.log('📤 useChatMessages에서 roomInfo 설정:', roomInfo);
+        
+        // 기본 roomInfo 설정 (메시지만 있는 경우)
+        const basicRoomInfo = {
+          id: roomId,
+          roomId: roomId,
+          title: `채팅방 ${roomId}`,
+          productId: null,
+          ownerEmail: null,
+          memberCount: 0,
+          participants: [],
+          myLastReadAt: null
+        };
+        
+        setRoomInfo(basicRoomInfo);
+        console.log('📤 useChatMessages에서 기본 roomInfo 설정:', basicRoomInfo);
         
         // 채팅방 정보를 부모 컴포넌트로 전달
-        if (onRoomInfoUpdate && roomInfo) {
-          console.log('📤 채팅방 정보를 부모로 전달:', roomInfo);
-          onRoomInfoUpdate(roomInfo);
+        if (onRoomInfoUpdate && basicRoomInfo) {
+          console.log('📤 기본 채팅방 정보를 부모로 전달:', basicRoomInfo);
+          onRoomInfoUpdate(basicRoomInfo);
         }
       }
     } catch (error) {
       console.error('❌ 통합 초기 로드 실패:', error);
       console.log('🔄 fallback으로 메시지만 별도 로드 시도');
       
-      // fallback: 기존 방식으로 메시지만 로드
+      // fallback: includeMessages=false로 메시지만 로드
       try {
-        const fallbackResponse = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?limit=50`);
+        const fallbackResponse = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?includeMessages=false&limit=50`);
         
         if (fallbackResponse.data) {
           const { items = [], nextCursor = null, hasNext = false } = fallbackResponse.data;
@@ -174,7 +166,7 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
       
       console.log(`🔄 이전 메시지 로드 시작 - cursor: ${nextCursor}`);
       const response = await axiosInstance.get(
-        `/api/chat/me/chatRooms/${roomId}/messages?limit=50&cursor=${nextCursor}`
+        `/api/chat/me/chatRooms/${roomId}/messages?includeMessages=false&limit=50&cursor=${nextCursor}`
       );
       
       console.log('📨 이전 메시지 응답:', response.data);

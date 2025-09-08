@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import AISearchBot from '../../common/AISearchBot';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
@@ -19,6 +20,8 @@ const Home = () => {
     };
   }, []);
   
+  const [connectionStatus, setConnectionStatus] = useState('');
+
   const handleAISearch = (query) => {
     console.log('AI 검색 쿼리:', query);
     // AI 검색 시 CommerceList 페이지로 이동
