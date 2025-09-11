@@ -501,7 +501,16 @@ const ChatPage = () => {
             state: stompClientRef.current?.state
           });
           
-          const messageSubscription = stompClientRef.current.subscribe(`/topic/chat/room/${room.id}`, (message) => {
+          // 중복 구독 방지를 위한 구독 키 생성
+          const subscriptionKey = `/topic/chat/room/${room.id}`;
+          
+          // 이미 구독 중인지 확인
+          if (subscriptionsRef.current.has(subscriptionKey)) {
+            console.log(`⚠️ 이미 구독 중인 채널: ${subscriptionKey}`);
+            return;
+          }
+          
+          const messageSubscription = stompClientRef.current.subscribe(subscriptionKey, (message) => {
             try {
               const payload = JSON.parse(message.body || '{}');
               console.log('📨 채팅방 메시지 수신:', payload);
@@ -554,15 +563,24 @@ const ChatPage = () => {
         console.log(`✅ 메시지 구독 성공: /topic/chat/room/${room.id}`);
         console.log(`📡 구독 객체:`, messageSubscription);
         console.log(`📡 구독 destination:`, messageSubscription.destination);
-        subscriptionsRef.current.add(messageSubscription);
+        subscriptionsRef.current.add(subscriptionKey);
         
         } catch (subscribeError) {
           console.error(`❌ 메시지 구독 실패 (/topic/chat/room/${room.id}):`, subscribeError);
         }
         
-        // room.roomId가 있으면 추가로 구독
+        // room.roomId가 있고 room.id와 다른 경우에만 추가 구독 (중복 방지)
         if (room.roomId && room.roomId !== room.id) {
-          const additionalMessageSubscription = stompClientRef.current.subscribe(`/topic/chat/room/${room.roomId}`, (message) => {
+          const additionalSubscriptionKey = `/topic/chat/room/${room.roomId}`;
+          
+          // 이미 구독 중인지 확인
+          if (subscriptionsRef.current.has(additionalSubscriptionKey)) {
+            console.log(`⚠️ 추가 구독 이미 존재: ${additionalSubscriptionKey}`);
+            return;
+          }
+          
+          console.log(`🔧 추가 구독 시작: ${additionalSubscriptionKey} (room.id: ${room.id})`);
+          const additionalMessageSubscription = stompClientRef.current.subscribe(additionalSubscriptionKey, (message) => {
 
             const chatMessage = JSON.parse(message.body);
             console.log("🔍 받은 메시지 전체:", chatMessage);
@@ -600,7 +618,7 @@ const ChatPage = () => {
             console.log(`=== 📨 ChatPage 추가 구독 WebSocket 메시지 수신 완료 (/topic/chat/room/${room.roomId}) ===`);
           });
           
-          subscriptionsRef.current.add(additionalMessageSubscription);
+          subscriptionsRef.current.add(additionalSubscriptionKey);
         }
         
         console.log(`📡 채팅방 ${room.id} 메시지 구독 완료`);
