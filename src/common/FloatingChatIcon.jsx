@@ -54,7 +54,7 @@ const FloatingChatIcon = () => {
         setUnreadCount(0);
         return;
       }
-      const response = await axiosInstance.get(`/api/chat/countALLUnreadMessages?userId=${userId}`);
+      const response = await axiosInstance.get(`/api/chat/countALLUnreadMessages`);
       console.log('안 읽은 메시지 개수 응답:', response.data);
       
       if (response.data && response.data.count !== undefined) {
@@ -106,28 +106,9 @@ const FloatingChatIcon = () => {
           stompClientRef.current = client;
           setIsWebSocketConnected(true);
 
-          // 내 채팅방 목록을 가져와 각 방 토픽을 구독
-          try {
-            const res = await axiosInstance.get('/api/chat/me/chatRooms');
-            const list = Array.isArray(res.data) ? res.data : (res.data?.content || []);
-            const roomIds = list.map((room) => room.roomId || room.id).filter(Boolean);
-
-            roomIds.forEach((roomId) => {
-              try {
-                const sub = client.subscribe(`/topic/chat/room/${roomId}`, () => {
-                  // 새 메시지 수신 → 총 미읽음 수 재조회
-                  fetchUnreadCount();
-                });
-                subscriptionsRef.current.add(sub);
-                console.log('📡 FloatingChatIcon 구독 완료:', `/topic/chat/room/${roomId}`);
-              } catch (e) {
-                console.error('❌ FloatingChatIcon 구독 실패:', roomId, e);
-              }
-            });
-          } catch (e) {
-            console.error('❌ 내 채팅방 목록 조회 실패 (아이콘):', e);
-          }
-        };
+          // WebSocket 연결만 하고 채팅방 구독은 하지 않음
+          // 채팅방 구독은 실제 채팅 페이지에서 처리
+        };  
 
         client.onStompError = (frame) => {
           console.error('❌ FloatingChatIcon STOMP 에러:', frame);

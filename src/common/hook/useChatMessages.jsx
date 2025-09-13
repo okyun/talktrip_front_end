@@ -107,7 +107,7 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
         const basicRoomInfo = {
           id: roomId,
           roomId: roomId,
-          title: `채팅방 ${roomId}`,
+          title: null, // 제목을 null로 설정하여 기존 제목 유지
           productId: null,
           ownerEmail: null,
           memberCount: 0,

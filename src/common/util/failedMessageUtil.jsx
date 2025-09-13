@@ -27,7 +27,7 @@ export const saveFailedMessage = (messageData, error = '') => {
     // 쿠키 크기 제한을 위해 최대 10개까지만 저장
     const limitedMessages = updatedFailedMessages.slice(-10);
     
-    setCookie(FAILED_MESSAGES_COOKIE_KEY, JSON.stringify(limitedMessages), COOKIE_EXPIRE_DAYS);
+    setCookie(FAILED_MESSAGES_COOKIE_KEY, limitedMessages, COOKIE_EXPIRE_DAYS);
     
     console.log('💾 실패한 메시지 쿠키에 저장:', failedMessage);
     return failedMessage.id;
@@ -46,7 +46,8 @@ export const getFailedMessages = () => {
     const cookieData = getCookie(FAILED_MESSAGES_COOKIE_KEY);
     if (!cookieData) return [];
     
-    const failedMessages = JSON.parse(cookieData);
+    // getCookie는 이미 JSON.parse를 수행하므로 다시 파싱할 필요 없음
+    const failedMessages = cookieData;
     return Array.isArray(failedMessages) ? failedMessages : [];
   } catch (error) {
     console.error('❌ 실패한 메시지 조회 실패:', error);
@@ -68,7 +69,7 @@ export const updateFailedMessage = (messageId, updates) => {
         : msg
     );
     
-    setCookie(FAILED_MESSAGES_COOKIE_KEY, JSON.stringify(updatedMessages), COOKIE_EXPIRE_DAYS);
+    setCookie(FAILED_MESSAGES_COOKIE_KEY, updatedMessages, COOKIE_EXPIRE_DAYS);
     console.log('🔄 실패한 메시지 업데이트:', messageId, updates);
   } catch (error) {
     console.error('❌ 실패한 메시지 업데이트 실패:', error);
@@ -87,7 +88,7 @@ export const removeFailedMessage = (messageId) => {
     if (filteredMessages.length === 0) {
       removeCookie(FAILED_MESSAGES_COOKIE_KEY);
     } else {
-      setCookie(FAILED_MESSAGES_COOKIE_KEY, JSON.stringify(filteredMessages), COOKIE_EXPIRE_DAYS);
+      setCookie(FAILED_MESSAGES_COOKIE_KEY, filteredMessages, COOKIE_EXPIRE_DAYS);
     }
     
     console.log('🗑️ 실패한 메시지 제거:', messageId);
@@ -124,7 +125,7 @@ export const cleanupOldFailedMessages = () => {
       if (validMessages.length === 0) {
         removeCookie(FAILED_MESSAGES_COOKIE_KEY);
       } else {
-        setCookie(FAILED_MESSAGES_COOKIE_KEY, JSON.stringify(validMessages), COOKIE_EXPIRE_DAYS);
+        setCookie(FAILED_MESSAGES_COOKIE_KEY, validMessages, COOKIE_EXPIRE_DAYS);
       }
       console.log('🧹 오래된 실패한 메시지 정리 완료:', failedMessages.length - validMessages.length, '개 제거');
     }

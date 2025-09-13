@@ -13,7 +13,9 @@ const BasicLayout = () => {
         /^\/commerce\/\d+\/before-payment$/,
         /^\/commerce\/\d+\/payment$/,
         /^\/chat(\/.*)?$/,
-        /^\/admin\/chat(\/.*)?$/
+        /^\/admin\/chat(\/.*)?$/,
+        /^\/openchat(\/.*)?$/,
+        /^\/admin\/openchat(\/.*)?$/
     ];
 
     const shouldShowChatIcon = !hideChatIconPatterns.some(pattern =>

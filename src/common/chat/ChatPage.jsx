@@ -253,7 +253,13 @@ const ChatPage = () => {
     return () => {
       // 기존 구독들 해제
       subscriptionsRef.current.forEach(subscription => {
-        subscription.unsubscribe();
+        try {
+          if (subscription && typeof subscription.unsubscribe === 'function') {
+            subscription.unsubscribe();
+          }
+        } catch (error) {
+          console.error('❌ 구독 해제 실패:', error);
+        }
       });
       subscriptionsRef.current.clear();
       
@@ -442,7 +448,7 @@ const ChatPage = () => {
           
           return {
             ...room,
-            title: roomInfo.title || room.title,
+            title: (roomInfo.title && roomInfo.title.trim() !== '') ? roomInfo.title : room.title,
             lastMessage: roomInfo.lastMessage || room.lastMessage,
             updatedAt: formatDate(roomInfo.updatedAt || room.updatedAt),
             notReadMessageCount: roomInfo.notReadMessageCount || room.notReadMessageCount || 0
@@ -475,8 +481,10 @@ const ChatPage = () => {
     console.log('🔄 기존 구독 해제 시작, 현재 구독 수:', subscriptionsRef.current.size);
     subscriptionsRef.current.forEach(subscription => {
       try {
-        subscription.unsubscribe();
-        console.log('✅ 구독 해제 완료');
+        if (subscription && typeof subscription.unsubscribe === 'function') {
+          subscription.unsubscribe();
+          console.log('✅ 구독 해제 완료');
+        }
       } catch (error) {
         console.error('❌ 구독 해제 실패:', error);
       }
@@ -563,7 +571,7 @@ const ChatPage = () => {
         console.log(`✅ 메시지 구독 성공: /topic/chat/room/${room.id}`);
         console.log(`📡 구독 객체:`, messageSubscription);
         console.log(`📡 구독 destination:`, messageSubscription.destination);
-        subscriptionsRef.current.add(subscriptionKey);
+        subscriptionsRef.current.add(messageSubscription);
         
         } catch (subscribeError) {
           console.error(`❌ 메시지 구독 실패 (/topic/chat/room/${room.id}):`, subscribeError);
@@ -618,7 +626,7 @@ const ChatPage = () => {
             console.log(`=== 📨 ChatPage 추가 구독 WebSocket 메시지 수신 완료 (/topic/chat/room/${room.roomId}) ===`);
           });
           
-          subscriptionsRef.current.add(additionalSubscriptionKey);
+          subscriptionsRef.current.add(additionalMessageSubscription);
         }
         
         console.log(`📡 채팅방 ${room.id} 메시지 구독 완료`);
