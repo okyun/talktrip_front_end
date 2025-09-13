@@ -17,6 +17,7 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
   const messagesContainerRef = useRef();
   const [input, setInput] = useState('');
   const [isLoadingOlder, setIsLoadingOlder] = useState(false);
+  const [isComposing, setIsComposing] = useState(false);
   const previousMessagesLength = useRef(0);
   
   // useChatMessages 훅 사용
@@ -150,7 +151,7 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
   }, [messages, isLoadingOlder]);
 
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || isComposing) return;
 
     // ChatMessageRequestDto 형태에 맞게 구성 (Member 객체 포함)
     const memberInfo = loginState || getCookie('member') || {};
@@ -205,7 +206,7 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.isComposing) {
+    if (e.key === 'Enter' && !e.isComposing && !isComposing) {
       e.preventDefault();
       handleSend();
     }
@@ -368,6 +369,8 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onCompositionStart={() => setIsComposing(true)}
+            onCompositionEnd={() => setIsComposing(false)}
             className="flex-1 border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-main focus:border-transparent"
             placeholder="메시지를 입력하세요..."
           />

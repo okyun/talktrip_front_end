@@ -512,8 +512,12 @@ const ChatPage = () => {
           // 중복 구독 방지를 위한 구독 키 생성
           const subscriptionKey = `/topic/chat/room/${room.id}`;
           
-          // 이미 구독 중인지 확인
-          if (subscriptionsRef.current.has(subscriptionKey)) {
+          // 이미 구독 중인지 확인 (구독 객체의 destination으로 확인)
+          const alreadySubscribed = Array.from(subscriptionsRef.current).some(sub => 
+            sub.destination === subscriptionKey
+          );
+          
+          if (alreadySubscribed) {
             console.log(`⚠️ 이미 구독 중인 채널: ${subscriptionKey}`);
             return;
           }
@@ -581,8 +585,12 @@ const ChatPage = () => {
         if (room.roomId && room.roomId !== room.id) {
           const additionalSubscriptionKey = `/topic/chat/room/${room.roomId}`;
           
-          // 이미 구독 중인지 확인
-          if (subscriptionsRef.current.has(additionalSubscriptionKey)) {
+          // 이미 구독 중인지 확인 (구독 객체의 destination으로 확인)
+          const alreadySubscribed = Array.from(subscriptionsRef.current).some(sub => 
+            sub.destination === additionalSubscriptionKey
+          );
+          
+          if (alreadySubscribed) {
             console.log(`⚠️ 추가 구독 이미 존재: ${additionalSubscriptionKey}`);
             return;
           }
@@ -650,10 +658,10 @@ const ChatPage = () => {
               messageId: payload.messageId,
             };
 
-            // 현재 보고 있는 방이면 ChatRoom으로 전달
-            if (chatRoomUpdateCallbackRef.current && String(chatMessage.roomId) === String(roomId)) {
-              chatRoomUpdateCallbackRef.current(chatMessage);
-            }
+            // 개인 큐에서는 ChatRoom으로 메시지 전달하지 않음 (채팅방 토픽에서 처리)
+            // if (chatRoomUpdateCallbackRef.current && String(chatMessage.roomId) === String(roomId)) {
+            //   chatRoomUpdateCallbackRef.current(chatMessage);
+            // }
 
             // 사이드바 목록 최신화
             if (chatMessage.message && chatMessage.roomId) {
