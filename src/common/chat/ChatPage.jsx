@@ -109,8 +109,10 @@ const ChatPage = () => {
       const year = date.getFullYear();
       const month = String(date.getMonth() + 1).padStart(2, '0');
       const day = String(date.getDate()).padStart(2, '0');
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
       
-      const formatted = `${year}-${month}-${day}`;
+      const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
       //console.log('✅ ChatPage 날짜 변환 성공:', dateInput, '→', formatted);
       return formatted;
     } catch (error) {
@@ -319,6 +321,48 @@ const ChatPage = () => {
         });
         
         console.log('✅ ChatPage WebSocket 메시지 전송 완료');
+        
+        // 메시지 전송 후 즉시 채팅방 목록 업데이트 및 정렬
+        setRooms(prev => {
+          const now = new Date();
+          const nowTime = now.getTime();
+          
+          const updated = prev.map(room => {
+            if (String(room.id) === String(messageDto.roomId) || String(room.roomId) === String(messageDto.roomId)) {
+              console.log('🔄 메시지 전송으로 채팅방 업데이트:', {
+                roomId: room.id,
+                message: messageDto.message,
+                newTime: nowTime
+              });
+              
+              return {
+                ...room,
+                lastMessage: messageDto.message,
+                updatedAt: formatDate(now),
+                _sortTime: nowTime, // 정렬용 타임스탬프 추가
+              };
+            }
+            return room;
+          });
+          
+          // _sortTime 기준으로 내림차순 정렬 (최신순)
+          const sorted = updated.sort((a, b) => {
+            const timeA = a._sortTime || new Date(a.updatedAt).getTime();
+            const timeB = b._sortTime || new Date(b.updatedAt).getTime();
+            return timeB - timeA;
+          });
+          
+          console.log('📊 정렬된 채팅방 목록:', sorted.map(r => ({
+            id: r.id,
+            title: r.title,
+            lastMessage: r.lastMessage,
+            updatedAt: r.updatedAt,
+            _sortTime: r._sortTime
+          })));
+          
+          return sorted;
+        });
+        
         return { success: true };
         
       } catch (error) {
@@ -434,23 +478,26 @@ const ChatPage = () => {
       // 현재 선택된 채팅방 정보 업데이트
       setCurrentRoomInfo(roomInfo);
       
-      // rooms 목록도 업데이트
+      // rooms 목록도 업데이트 (정렬하지 않음 - 클릭 시에는 순서 유지)
       setRooms(prev => prev.map(room => {
         // roomId나 id로 매칭
         if (String(room.id) === String(roomInfo.id) || 
             String(room.roomId) === String(roomInfo.id) ||
             String(room.id) === String(roomInfo.roomId)) {
           
-          console.log('🔄 채팅방 정보 업데이트:', {
+          console.log('🔄 채팅방 정보 업데이트 (정렬 없음):', {
             기존: { id: room.id, title: room.title },
             새로운: { id: roomInfo.id, title: roomInfo.title }
           });
+          
+          const updateTime = roomInfo.updatedAt ? new Date(roomInfo.updatedAt) : new Date();
           
           return {
             ...room,
             title: (roomInfo.title && roomInfo.title.trim() !== '') ? roomInfo.title : room.title,
             lastMessage: roomInfo.lastMessage || room.lastMessage,
-            updatedAt: formatDate(roomInfo.updatedAt || room.updatedAt),
+            updatedAt: formatDate(updateTime),
+            _sortTime: updateTime.getTime(), // 정렬용 타임스탬프는 유지하되 정렬은 하지 않음
             notReadMessageCount: roomInfo.notReadMessageCount || room.notReadMessageCount || 0
           };
         }
@@ -667,17 +714,28 @@ const ChatPage = () => {
             if (chatMessage.message && chatMessage.roomId) {
               // 백엔드에서 이미 개인별로 계산된 unread 수 사용
               const effectiveUnread = payload.unreadCountForReceiver ?? 0;
+              const updateTime = new Date(chatMessage.createdAt);
 
-              setRooms(prev => prev.map(r => (
-                (String(r.id) === String(chatMessage.roomId) || String(r.roomId) === String(chatMessage.roomId))
-                  ? {
-                      ...r,
-                      lastMessage: chatMessage.message,
-                      updatedAt: formatDate(chatMessage.createdAt),
-                      notReadMessageCount: effectiveUnread,
-                    }
-                  : r
-              )).sort((a,b) => new Date(b.updatedAt) - new Date(a.updatedAt)));
+              setRooms(prev => {
+                const updated = prev.map(r => (
+                  (String(r.id) === String(chatMessage.roomId) || String(r.roomId) === String(chatMessage.roomId))
+                    ? {
+                        ...r,
+                        lastMessage: chatMessage.message,
+                        updatedAt: formatDate(updateTime),
+                        _sortTime: updateTime.getTime(), // 정렬용 타임스탬프 추가
+                        notReadMessageCount: effectiveUnread,
+                      }
+                    : r
+                ));
+                
+                // _sortTime 기준으로 내림차순 정렬 (최신순)
+                return updated.sort((a, b) => {
+                  const timeA = a._sortTime || new Date(a.updatedAt).getTime();
+                  const timeB = b._sortTime || new Date(b.updatedAt).getTime();
+                  return timeB - timeA;
+                });
+              });
             }
           } catch (e) {
             console.error('❌ 개인 큐 구독 파싱 실패:', e, message?.body);
@@ -1092,10 +1150,10 @@ const ChatPage = () => {
     });
   } catch (_) {}
   return (
-    <div className={`flex h-screen ${isAdminChat ? 'theme-purple' : 'theme-blue'}`}>
+    <div className={`flex h-[calc(100vh-120px)] ${isAdminChat ? 'theme-purple' : 'theme-blue'}`}>
       {/* 사이드바 - 스크롤 가능하도록 수정 */}
-      <aside className="w-64 md:w-72 lg:w-80 xl:w-96 border-r bg-white flex flex-col">
-        <div className="px-4 py-1 font-bold border-t border-b bg-gray-50 text-gray-900">
+      <aside className="w-64 md:w-72 lg:w-80 xl:w-96 border-r bg-white flex flex-col h-full">
+        <div className="px-3 py-1 font-bold border-t border-b bg-gray-50 text-gray-900 text-sm">
           채팅 목록 ({rooms.length})
           {console.log('🚨 현재 rooms 상태:', rooms)}
           {console.log('🚨 현재 rooms title:', rooms.map(r => r.title))}
@@ -1120,7 +1178,7 @@ const ChatPage = () => {
               return (
               <li
                 key={room.id || `room-${index}`}
-                className={`flex justify-between items-center px-4 py-3 hover:bg-gray-100 cursor-pointer border-b border-gray-100
+                className={`flex justify-between items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100
                   ${room.id === roomId ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}
                   ${Number(room.notReadMessageCount) > 0 ? 'bg-yellow-50 border-l-2 border-l-yellow-400' : ''}
                   ${room.roomType === 'GROUP' ? 'border-l-2 border-l-green-300' : ''}`}
@@ -1131,14 +1189,14 @@ const ChatPage = () => {
                       {/* 채팅방 타입 아이콘 */}
                       <div className="flex-shrink-0 mr-2">
                         {room.roomType === 'GROUP' ? (
-                          <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                          <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
                             </svg>
                           </div>
                         ) : (
-                          <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
-                            <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                          <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
                             </svg>
                           </div>
@@ -1146,21 +1204,21 @@ const ChatPage = () => {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center">
-                    <span className="font-medium truncate text-gray-900 font-semibold">{room.title}</span>
+                    <span className="font-medium truncate text-gray-900 font-semibold text-sm">{room.title}</span>
                           {room.roomType === 'GROUP' && (
-                            <span className="ml-2 px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded-full flex-shrink-0">
+                            <span className="ml-2 px-1 py-0.5 text-xs bg-green-100 text-green-700 rounded-full flex-shrink-0">
                               그룹
-                      </span>
-                    )}
-                  </div>
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                     {Number(room.notReadMessageCount) > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center w-2.5 h-2.5 bg-red-500 rounded-full flex-shrink-0" />
+                      <span className="ml-2 inline-flex items-center justify-center w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
                     )}
                   </div>
-                  <div className={`text-xs truncate mt-1 ml-8 ${Number(room.notReadMessageCount) > 0 ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{room.lastMessage}</div>
-                  <div className="text-xs text-gray-400 mt-1 ml-8">{formatDate(room.updatedAt)}</div>
+                  <div className={`text-xs truncate mt-0.5 ml-7 ${Number(room.notReadMessageCount) > 0 ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{room.lastMessage}</div>
+                  <div className="text-xs text-gray-400 mt-0.5 ml-7">{formatDate(room.updatedAt)}</div>
                 </Link>
                 <button
                   onClick={() => handleDeleteRoom(room.id)}
@@ -1210,7 +1268,7 @@ const ChatPage = () => {
       </aside>
 
       {/* 채팅방 선택 전 / 후 Outlet */}
-      <main className="flex-1 p-4 bg-gray-50">
+      <main className="flex-1 p-2 bg-gray-50">
         <Routes>
           {/* 아무 방도 선택 안됐을 때 */}
           <Route

@@ -12,7 +12,6 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
   const { roomId } = useParams();
   // URL에서 가져온 roomId 사용
   const actualRoomId = roomId || 'ROOM001';
-  const scrollRef = useRef();
   const topSentinelRef = useRef();
   const messagesContainerRef = useRef();
   const [input, setInput] = useState('');
@@ -144,8 +143,9 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
   useEffect(() => {
     // 새 메시지가 추가되었을 때만 스크롤을 맨 아래로 이동
     // 이전 메시지 로드 중이거나 메시지 길이가 줄어든 경우는 제외
-    if (!isLoadingOlder && messages.length > previousMessagesLength.current && scrollRef.current) {
-      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (!isLoadingOlder && messages.length > previousMessagesLength.current && messagesContainerRef.current) {
+      // 채팅 컨테이너 내에서만 스크롤 (전체 페이지 스크롤 방지)
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
     previousMessagesLength.current = messages.length;
   }, [messages, isLoadingOlder]);
@@ -192,6 +192,12 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
         
         if (result.success) {
           console.log('✅ 메시지 전송 성공');
+          // 메시지 전송 후 채팅 컨테이너를 맨 아래로 스크롤
+          setTimeout(() => {
+            if (messagesContainerRef.current) {
+              messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+            }
+          }, 100);
         } else {
           console.warn('⚠️ 메시지는 화면에 추가되었지만 서버 전송에 실패했습니다.');
         }
@@ -343,7 +349,6 @@ const ChatRoom = ({ isWebSocketConnected, onSendMessage, onMessageUpdate, roomTi
             ))}
           </>
         )}
-        <div ref={scrollRef} />
       </div>
 
       {/* 입력창 */}
