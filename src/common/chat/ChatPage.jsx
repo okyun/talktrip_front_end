@@ -204,25 +204,6 @@ const ChatPage = () => {
           stompClientRef.current = client;
           setIsWebSocketConnected(true); // 연결 상태 업데이트
           console.log('✅ isWebSocketConnected 상태 업데이트됨: true');
-          
-          // 테스트용 하드코딩 구독 (현재 채팅방이 있는 경우)
-          if (effectiveRoomId) {
-            console.log(`🔧 테스트용 직접 구독 시작: /topic/chat/room/${effectiveRoomId}`);
-            try {
-              const testSubscription = client.subscribe(`/topic/chat/room/${effectiveRoomId}`, (message) => {
-                console.log(`🔧 테스트 구독으로 메시지 수신 (/topic/chat/room/${effectiveRoomId}):`, message.body);
-                try {
-                  const testMessage = JSON.parse(message.body);
-                  console.log(`🔧 테스트 파싱된 메시지:`, testMessage);
-                } catch (error) {
-                  console.error(`🔧 테스트 파싱 실패:`, error);
-                }
-              });
-              console.log(`🔧 테스트 구독 성공: /topic/chat/room/${effectiveRoomId}`);
-            } catch (error) {
-              console.error(`🔧 테스트 구독 실패:`, error);
-            }
-          }
         };
 
         client.onStompError = (frame) => {
@@ -574,8 +555,38 @@ const ChatPage = () => {
               const payload = JSON.parse(message.body || '{}');
               console.log('📨 채팅방 메시지 수신:', payload);
               
-              // ChatMessagePush 구조에 맞게 필드 매핑
-              const msgRoomId = payload.roomId || room.id;
+              // 🔥 프론트엔드 메시지 필터링: roomId 검증
+              const msgRoomId = payload.roomId;
+              const expectedRoomId = room.id;
+              
+              // URL에서 roomId 추출
+              const urlRoomId = window.location.pathname.split('/').pop();
+              
+              console.log(`🔍 채팅방 메시지 필터링 체크 - 수신된 roomId: ${msgRoomId}, 예상 roomId: ${expectedRoomId}`);
+              console.log(`🔍 현재 URL: ${window.location.href}`);
+              console.log(`🔍 구독 키: ${subscriptionKey}`);
+              console.log(`🔍 room 객체:`, room);
+              console.log(`🔍 room.id: ${room.id}, room.roomId: ${room.roomId}`);
+              console.log(`🔍 URL roomId: ${urlRoomId}`);
+              
+              // 메시지의 roomId가 현재 구독한 채팅방과 일치하는지 확인
+              if (msgRoomId && expectedRoomId && String(msgRoomId) !== String(expectedRoomId)) {
+                console.warn(`🚫 채팅방 메시지 필터링: roomId 불일치 - 수신된 roomId: ${msgRoomId}, 예상 roomId: ${expectedRoomId}, 메시지 무시`);
+                return; // 메시지 무시
+              }
+              
+              // 🔥 추가 필터링: URL의 roomId와도 비교
+              if (msgRoomId && urlRoomId && String(msgRoomId) !== String(urlRoomId)) {
+                console.warn(`🚫 URL roomId 필터링: roomId 불일치 - 수신된 roomId: ${msgRoomId}, URL roomId: ${urlRoomId}, 메시지 무시`);
+                return; // 메시지 무시
+              }
+              
+              // roomId가 비어있거나 null인 경우도 무시
+              if (!msgRoomId || msgRoomId.trim() === '') {
+                console.warn(`🚫 메시지 필터링: roomId가 비어있음 - 메시지 무시`);
+                return;
+              }
+              
               const senderEmail = payload.sender || payload.accountEmail || '';
               const messageText = payload.message || '';
               const createdAt = payload.createdAt || Date.now();
@@ -628,62 +639,6 @@ const ChatPage = () => {
           console.error(`❌ 메시지 구독 실패 (/topic/chat/room/${room.id}):`, subscribeError);
         }
         
-        // room.roomId가 있고 room.id와 다른 경우에만 추가 구독 (중복 방지)
-        if (room.roomId && room.roomId !== room.id) {
-          const additionalSubscriptionKey = `/topic/chat/room/${room.roomId}`;
-          
-          // 이미 구독 중인지 확인 (구독 객체의 destination으로 확인)
-          const alreadySubscribed = Array.from(subscriptionsRef.current).some(sub => 
-            sub.destination === additionalSubscriptionKey
-          );
-          
-          if (alreadySubscribed) {
-            console.log(`⚠️ 추가 구독 이미 존재: ${additionalSubscriptionKey}`);
-            return;
-          }
-          
-          console.log(`🔧 추가 구독 시작: ${additionalSubscriptionKey} (room.id: ${room.id})`);
-          const additionalMessageSubscription = stompClientRef.current.subscribe(additionalSubscriptionKey, (message) => {
-
-            const chatMessage = JSON.parse(message.body);
-            console.log("🔍 받은 메시지 전체:", chatMessage);
-            console.log("🧩 키 목록:", Object.keys(chatMessage));
-            Object.entries(chatMessage).forEach(([key, value]) => {
-              console.log(`🔑 ${key}:`, value, `(타입: ${typeof value})`);
-            });
-
-            console.log(`=== 📨 ChatPage 추가 구독 WebSocket 메시지 수신 시작 (/topic/chat/room/${room.roomId}) ===`);
-            console.log(`📨 추가 구독 - 원본 메시지 객체:`, message);
-            console.log(`📨 추가 구독 - 메시지 바디 (raw):`, message.body);
-            console.log(`📨 추가 구독 - 메시지 헤더:`, message.headers);
-            console.log(`📨 추가 구독 - 메시지 명령:`, message.command);
-            
-            try {
-              const chatMessage = JSON.parse(message.body);
-              console.log(`📨 추가 구독 - 파싱된 메시지1 (ChatPage):`, chatMessage);
-              console.log(`📨 추가 구독 - 파싱된 메시지1 JSON:`, JSON.stringify(chatMessage, null, 2));
-              console.log(`📨 추가 구독 - 키들:`, Object.keys(chatMessage));
-              console.log(`📨 추가 구독 - 키 개수:`, Object.keys(chatMessage).length);
-              console.log(`📨 추가 구독 - 메시지 내용:`, chatMessage.message);
-              console.log(`📨 추가 구독 - 메시지 roomId:`, chatMessage.roomId);
-              console.log(`📨 추가 구독 - 메시지 memberId:`, chatMessage.memberId);
-              console.log(`📨 추가 구독 - 메시지 unreadCount:`, chatMessage.unreadCount);
-              console.log(`📨 추가 구독 - 메시지 updatedAt:`, chatMessage.updatedAt);
-              console.log(`=== 추가 구독 - 백엔드에서 보낸 모든 필드 확인 ===`);
-              for (const [key, value] of Object.entries(chatMessage)) {
-                console.log(`📨 추가 구독 - 필드 ${key}:`, value, `(타입: ${typeof value})`);
-              }
-            } catch (error) {
-              console.error(`❌ 추가 구독 - 메시지 파싱 실패:`, error);
-              console.error(`❌ 추가 구독 - 파싱 실패한 원본 데이터:`, message.body);
-            }
-            
-            console.log(`=== 📨 ChatPage 추가 구독 WebSocket 메시지 수신 완료 (/topic/chat/room/${room.roomId}) ===`);
-          });
-          
-          subscriptionsRef.current.add(additionalMessageSubscription);
-        }
-        
         console.log(`📡 채팅방 ${room.id} 메시지 구독 완료`);
       });
 
@@ -694,6 +649,13 @@ const ChatPage = () => {
           try {
             const payload = JSON.parse(message.body || '{}');
             console.log('📨 개인 큐 메시지 수신:', payload);
+            
+            // 개인 큐 메시지 처리
+            const msgRoomId = payload.roomId;
+            const currentRoomId = effectiveRoomId || roomId;
+            
+            console.log(`🔍 개인 큐 메시지 처리 - 수신된 roomId: ${msgRoomId}, 현재 roomId: ${currentRoomId}`);
+            console.log(`🔍 개인 큐 현재 URL: ${window.location.href}`);
             
             const text = payload.message ?? payload.content ?? payload.lastMessage ?? payload.msg ?? payload.text ?? '';
             const chatMessage = {
@@ -710,7 +672,7 @@ const ChatPage = () => {
             //   chatRoomUpdateCallbackRef.current(chatMessage);
             // }
 
-            // 사이드바 목록 최신화
+            // 🔥 사이드바 목록 최신화 - 모든 메시지에 대해 실행 (채팅방 목록 업데이트)
             if (chatMessage.message && chatMessage.roomId) {
               // 백엔드에서 이미 개인별로 계산된 unread 수 사용
               const effectiveUnread = payload.unreadCountForReceiver ?? 0;
