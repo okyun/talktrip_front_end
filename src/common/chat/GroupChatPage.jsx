@@ -1,4 +1,3 @@
-// src/common/chat/GroupChatPage.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
@@ -24,7 +23,6 @@ const GroupChatPage = () => {
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const stompClientRef = useRef(null);
 
-  // 현재 경로가 관리자 구역인지 여부
   const isAdminPath = useMemo(() => location.pathname.startsWith('/admin'), [location.pathname]);
 
   const getAccessToken = () => {
@@ -38,7 +36,6 @@ const GroupChatPage = () => {
     return null;
   };
 
-  // WebSocket 연결 (STOMP)
   useEffect(() => {
     let isMounted = true;
     const wsBase = API_SERVER_HOST.replace(/\/$/, '').replace(/^http/, 'ws');
@@ -86,7 +83,6 @@ const GroupChatPage = () => {
     };
   }, [accessToken]);
 
-  // 메시지 전송 (ChatRoom에 콜백으로 전달)
   const handleSendMessage = useCallback((messageDto) => {
     if (isWebSocketConnected && stompClientRef.current && stompClientRef.current.connected) {
       try {
@@ -105,11 +101,9 @@ const GroupChatPage = () => {
     return { success: false, error: 'WebSocket not connected' };
   }, [isWebSocketConnected]);
 
-  // 그룹 채팅방 목록 가져오기
   useEffect(() => {
     const fetchGroupRooms = async () => {
       try {
-        // roomType=GROUP 파라미터로 그룹채팅만 필터링
         const res = await axiosInstance.get('/api/chat/me/chatRooms/all?roomType=GROUP');
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           const mapped = res.data.map((room) => ({
@@ -126,7 +120,6 @@ const GroupChatPage = () => {
       } catch (error) {
         console.error('그룹채팅방 목록 조회 실패:', error);
       }
-      // fallback to dummy
       setRooms(dummyGroupRooms);
     };
     fetchGroupRooms();
@@ -137,15 +130,12 @@ const GroupChatPage = () => {
   const unreadCount = Array.isArray(rooms) ? rooms.filter(r => Number(r.notReadMessageCount) > 0).length : 0;
 
   const handleRoomClick = async (id) => {
-    // 그룹채팅에서도 읽음 처리
     const room = rooms.find(r => r.id === id);
     if (room && room.notReadMessageCount > 0) {
       try {
-        // 백엔드 API 호출하여 읽음 처리
         const { markRoomAsRead } = await import('../api/chatApi');
         await markRoomAsRead(id);
         
-        // 즉시 UI 업데이트
         setRooms(prevRooms => 
           prevRooms.map(room => 
             room.id === id ? { ...room, notReadMessageCount: 0 } : room
@@ -154,7 +144,6 @@ const GroupChatPage = () => {
         console.log(`그룹채팅방 ${id} 읽음 처리 완료`);
       } catch (error) {
         console.error('그룹채팅방 읽음 처리 실패:', error);
-        // 에러가 발생해도 UI는 업데이트 (사용자 경험 개선)
         setRooms(prevRooms => 
           prevRooms.map(room => 
             room.id === id ? { ...room, notReadMessageCount: 0 } : room
@@ -172,7 +161,6 @@ const GroupChatPage = () => {
 
   return (
     <div className={`flex h-screen ${isAdminPath ? 'theme-purple' : 'theme-blue'}`}>
-      {/* 사이드바 */}
       <aside className="w-64 border-r bg-white flex flex-col">
         <div className="px-4 py-1 font-bold border-t border-b bg-gray-50 text-gray-900">
           모임 채팅방 ({rooms.length})
@@ -204,7 +192,6 @@ const GroupChatPage = () => {
         </div>
       </aside>
 
-      {/* 본문 */}
       <main className="flex-1 p-4 bg-gray-50">
         <Routes>
           <Route
@@ -225,7 +212,7 @@ const GroupChatPage = () => {
               <ChatRoom
                 isWebSocketConnected={isWebSocketConnected}
                 onSendMessage={handleSendMessage}
-                onMessageUpdate={(/* callback */) => { /* GroupChatPage에선 별도 전달 없이 ChatRoom의 /update 구독 사용 */ }}
+                onMessageUpdate={() => {}}
                 roomTitle={selectedRoom?.title || ''}
               />
             }

@@ -1,4 +1,3 @@
-// src/common/chat/OpenChatPage.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 
@@ -122,7 +121,6 @@ const OpenChatPage = () => {
         </div>
         <div className="flex-1 overflow-y-auto">
           <ul>
-            {/* 채널 목록은 이후 API/구독 연동 시 구성 */}
             <li className="px-4 py-3 text-sm text-gray-500">채널 목록을 준비 중입니다...</li>
           </ul>
         </div>

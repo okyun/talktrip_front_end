@@ -1,9 +1,10 @@
 // src/common/chat/ChatPage.jsx
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Routes, Route, Link, useNavigate, useParams, useLocation, useMatch } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import axiosInstance, { API_SERVER_HOST } from '../api/mainApi';  // mainApi의 axiosInstance 사용
 import ChatRoom from './ChatRoom';
+import ChatRoomItem from './ChatRoomItem';
 import { Client } from '@stomp/stompjs';
 import { getCookie } from '../util/cookieUtil';
 import { 
@@ -52,58 +53,34 @@ const ChatPage = () => {
   const chatRoomUpdateCallbackRef = useRef(null); // ChatRoom 업데이트 콜백
   const sendMessageCallbackRef = useRef(null); // ChatRoom에서 메시지 전송 요청 콜백
 
-  // 날짜를 yyyy-mm-dd 형식으로 변환하는 함수
   const formatDate = (dateInput) => {
     if (!dateInput) return '';
-    
-    console.log('🔍 ChatPage formatDate 입력값:', dateInput, '타입:', typeof dateInput);
     
     try {
       let date;
       
-      // Date 객체인 경우
       if (dateInput instanceof Date) {
-        console.log('📅 Date 객체 감지');
         date = dateInput;
-      }
-      // 배열 형태인 경우 (예: [2025, 8, 6, ...])
-      else if (Array.isArray(dateInput)) {
+      } else if (Array.isArray(dateInput)) {
         const [year, month, day, hours = 0, minutes = 0, seconds = 0] = dateInput;
-        date = new Date(year, month - 1, day, hours, minutes, seconds); // 반드시 month - 1
-      }
-      // 콤마로 구분된 문자열인 경우 (예: "2025,8,7,16,59,9")
-      else if (typeof dateInput === 'string' && dateInput.includes(',')) {
-        console.log('📋 콤마 구분 문자열 감지:', dateInput);
+        date = new Date(year, month - 1, day, hours, minutes, seconds);
+      } else if (typeof dateInput === 'string' && dateInput.includes(',')) {
         const parts = dateInput.split(',').map(part => parseInt(part.trim()));
         const [year, month, day, hours = 0, minutes = 0, seconds = 0] = parts;
-        // 월은 0부터 시작하므로 1을 빼줌
         date = new Date(year, month - 1, day, hours, minutes, seconds);
-      }
-      // 타임스탬프 숫자인 경우 (13자리 밀리초 또는 10자리 초)
-      else if (typeof dateInput === 'number') {
-        console.log('🔢 숫자 타임스탬프 감지:', dateInput);
-        // 10자리면 초 단위이므로 1000을 곱해서 밀리초로 변환
+      } else if (typeof dateInput === 'number') {
         const timestamp = dateInput.toString().length === 10 ? dateInput * 1000 : dateInput;
         date = new Date(timestamp);
-      }
-      // 문자열 숫자인 경우 (예: "1736939200000")
-      else if (typeof dateInput === 'string' && /^\d+$/.test(dateInput)) {
-        console.log('🔢 문자열 타임스탬프 감지:', dateInput);
+      } else if (typeof dateInput === 'string' && /^\d+$/.test(dateInput)) {
         const timestamp = parseInt(dateInput);
-        // 10자리면 초 단위이므로 1000을 곱해서 밀리초로 변환
         const finalTimestamp = dateInput.length === 10 ? timestamp * 1000 : timestamp;
         date = new Date(finalTimestamp);
-      }
-      // 일반 문자열 날짜인 경우
-      else {
-        //console.log('📝 일반 문자열 날짜 감지:', dateInput);
+      } else {
         date = new Date(dateInput);
       }
       
-      // 유효한 날짜인지 확인
       if (isNaN(date.getTime())) {
-        console.warn('❌ 유효하지 않은 날짜:', dateInput);
-        return String(dateInput); // 파싱 실패 시 문자열로 반환
+        return String(dateInput);
       }
       
       const year = date.getFullYear();
@@ -112,12 +89,9 @@ const ChatPage = () => {
       const hours = String(date.getHours()).padStart(2, '0');
       const minutes = String(date.getMinutes()).padStart(2, '0');
       
-      const formatted = `${year}-${month}-${day} ${hours}:${minutes}`;
-      //console.log('✅ ChatPage 날짜 변환 성공:', dateInput, '→', formatted);
-      return formatted;
+      return `${year}-${month}-${day} ${hours}:${minutes}`;
     } catch (error) {
-      console.warn('❌ ChatPage 날짜 시간 형식 변환 실패:', dateInput, error);
-      return String(dateInput); // 에러 시 문자열로 반환
+      return String(dateInput);
     }
   };
 
@@ -1019,17 +993,19 @@ const ChatPage = () => {
     fetchChatRooms();
   }, []);
 
-  // 현재 경로에 따라 채팅방 링크 결정
-  const getChatLink = (roomId) => {
+  // 현재 경로에 따라 채팅방 링크 결정 (메모이제이션으로 최적화)
+  const getChatLink = useCallback((roomId) => {
     if (location.pathname.startsWith('/admin')) {
       return `/admin/chat/${roomId}`;
     } else {
       return `/chat/${roomId}`;
     }
-  };
+  }, [location.pathname]);
 
-  // 읽지 않은 채팅방 개수 계산 (안전한 배열 처리)
-  const unreadCount = Array.isArray(rooms) ? rooms.filter(room => room.notReadMessageCount > 0).length : 0;
+  // 읽지 않은 채팅방 개수 계산 (메모이제이션으로 최적화)
+  const unreadCount = useMemo(() => {
+    return Array.isArray(rooms) ? rooms.filter(room => room.notReadMessageCount > 0).length : 0;
+  }, [rooms]);
 
   // 채팅방 클릭 시 읽음 처리
   const handleRoomClick = async (roomId) => {
@@ -1129,82 +1105,17 @@ const ChatPage = () => {
         </div>
         <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
           <ul>
-            {rooms.map((room, index) => {
-              console.log(`🔍 렌더링 중인 방 ${index + 1}:`, {
-                id: room.id,
-                title: room.title,
-                notReadMessageCount: room.notReadMessageCount,
-                notReadMessageCountType: typeof room.notReadMessageCount,
-                condition: room.notReadMessageCount > 0
-              });
-              return (
-              <li
+            {rooms.map((room, index) => (
+              <ChatRoomItem
                 key={room.id || `room-${index}`}
-                className={`flex justify-between items-center px-3 py-2 hover:bg-gray-100 cursor-pointer border-b border-gray-100
-                  ${room.id === roomId ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}
-                  ${Number(room.notReadMessageCount) > 0 ? 'bg-yellow-50 border-l-2 border-l-yellow-400' : ''}
-                  ${room.roomType === 'GROUP' ? 'border-l-2 border-l-green-300' : ''}`}
-              >
-                <Link to={getChatLink(room.id)} className="flex-1 min-w-0" onClick={() => handleRoomClick(room.id)}>
-                  <div className="flex items-center justify-between w-full">
-                    <div className="flex items-center min-w-0 flex-1">
-                      {/* 채팅방 타입 아이콘 */}
-                      <div className="flex-shrink-0 mr-2">
-                        {room.roomType === 'GROUP' ? (
-                          <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
-                            <svg className="w-3 h-3 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
-                            </svg>
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
-                            <svg className="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"/>
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center">
-                    <span className="font-medium truncate text-gray-900 font-semibold text-sm">{room.title}</span>
-                          {room.roomType === 'GROUP' && (
-                            <span className="ml-2 px-1 py-0.5 text-xs bg-green-100 text-green-700 rounded-full flex-shrink-0">
-                              그룹
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    {Number(room.notReadMessageCount) > 0 && (
-                      <span className="ml-2 inline-flex items-center justify-center w-2 h-2 bg-red-500 rounded-full flex-shrink-0" />
-                    )}
-                  </div>
-                  <div className={`text-xs truncate mt-0.5 ml-7 ${Number(room.notReadMessageCount) > 0 ? 'text-gray-800 font-medium' : 'text-gray-500'}`}>{room.lastMessage}</div>
-                  <div className="text-xs text-gray-400 mt-0.5 ml-7">{formatDate(room.updatedAt)}</div>
-                </Link>
-                <button
-                  onClick={() => handleDeleteRoom(room.id)}
-                  className="text-blue-400 hover:text-blue-600 px-2 ml-2 flex-shrink-0 transition-colors duration-200"
-                  title="채팅방 삭제"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
-                </button>
-              </li>
-              );
-            })}
+                room={room}
+                isSelected={room.id === roomId}
+                getChatLink={getChatLink}
+                onRoomClick={handleRoomClick}
+                onDeleteRoom={handleDeleteRoom}
+                formatDate={formatDate}
+              />
+            ))}
             
             {/* 무한 스크롤 로딩 인디케이터 */}
             {isLoadingMore && (
