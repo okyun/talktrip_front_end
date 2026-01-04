@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
-import axiosInstance from './api/mainApi';
+import axiosInstance, { API_SERVER_HOST } from './api/mainApi';
 import { Client } from '@stomp/stompjs';
 
 const FloatingChatIcon = () => {
@@ -82,7 +82,9 @@ const FloatingChatIcon = () => {
     const initWebSocket = async () => {
       try {
         const SockJS = (await import('sockjs-client')).default;
-        const socket = new SockJS('http://localhost:80/ws', null, {
+        // 개발 환경: Vite proxy 사용 (상대 경로), 프로덕션: API_SERVER_HOST 사용
+        const wsUrl = API_SERVER_HOST ? `${API_SERVER_HOST}/ws` : '/ws';
+        const socket = new SockJS(wsUrl, null, {
           transports: ['websocket', 'xhr-streaming', 'xhr-polling'],
         });
 
