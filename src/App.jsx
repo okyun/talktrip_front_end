@@ -1,6 +1,7 @@
 // App.jsx
 import React from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import BasicLayout from './common/BasicLayout';
 import MemberRouter from './common/router/memberRouter';
 import AdminProtectedRoute from './common/components/AdminProtectedRoute';
@@ -29,8 +30,14 @@ import AdminProductReviews from './Admin/pages/AdminProduct/AdminProductReviewsP
 import AdminOrderList from './Admin/pages/AdminOrder/AdminOrderListPage';
 import AdminOrderDetail from './Admin/pages/AdminOrder/AdminOrderDetailPage';
 import AdminProfilePage from './Admin/pages/AdminProfile/AdminProfilePage';
+import AdminProductStatsPage from './Admin/pages/AdminStats/AdminProductStatsPage';
+import AdminProductClickStatsPage from './Admin/pages/AdminStats/AdminProductClickStatsPage';
+import { OrderNotificationToast } from './components/OrderNotificationToast';
 
 function App() {
+  const loginState = useSelector((state) => state.loginSlice);
+  const email = loginState?.email || loginState?.accountEmail || null;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <BrowserRouter>
@@ -104,8 +111,20 @@ function App() {
                 <AdminProfilePage />
               </AdminProtectedRoute>
             } />
+            <Route path="/admin/product-stats" element={
+              <AdminProtectedRoute>
+                <AdminProductStatsPage />
+              </AdminProtectedRoute>
+            } />
+            <Route path="/admin/product-click-stats" element={
+              <AdminProtectedRoute>
+                <AdminProductClickStatsPage />
+              </AdminProtectedRoute>
+            } />
           </Route>
         </Routes>
+        {/* 주문 완료 WebSocket 알림 토스트 */}
+        <OrderNotificationToast email={email} />
       </BrowserRouter>
     </div>
   );
