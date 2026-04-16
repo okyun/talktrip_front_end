@@ -118,10 +118,14 @@ export const handleAuthError = async (err) => {
 			const tokenResponse = await refreshJWT();
 
 			if (tokenResponse && tokenResponse.accessToken) {
-				// 새 accessToken으로 Authorization 헤더 업데이트
 				originalRequest.headers.Authorization = `Bearer ${tokenResponse.accessToken}`;
 				console.log("Retrying original request with new access token...");
-				return axiosInstance(originalRequest); // 원래 요청 재시도
+				const url = String(originalRequest.url || "");
+				if (url.includes("/api/chat")) {
+					const { chatAxiosInstance } = await import("../api/mainApi");
+					return chatAxiosInstance(originalRequest);
+				}
+				return axiosInstance(originalRequest);
 			}
 		} catch (refreshError) {
 			console.error("Failed to refresh token:", refreshError);

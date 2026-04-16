@@ -1,9 +1,9 @@
-import axiosInstance from './mainApi';
+import { chatAxiosInstance } from './mainApi';
 
 // 채팅방 읽음 처리 (notReadMessageCount 초기화)
 export const markRoomAsRead = async (roomId) => {
   try {
-    const response = await axiosInstance.patch(`/api/chat/me/chatRooms/${roomId}/markAsRead`);
+    const response = await chatAxiosInstance.patch(`/api/chat/me/chatRooms/${roomId}/markAsRead`);
     return response.data;
   } catch (error) {
     console.error('채팅방 읽음 처리 실패:', error);
@@ -18,7 +18,7 @@ export const getChatRooms = async (limit = 25, cursor = null) => {
     if (cursor) {
       params.cursor = cursor;
     }
-    const response = await axiosInstance.get('/api/chat/me/chatRooms', { params });
+    const response = await chatAxiosInstance.get('/api/chat/me/chatRooms', { params });
     return response.data;
   } catch (error) {
     console.error('채팅방 목록 조회 실패:', error);
@@ -33,7 +33,7 @@ export const getRoomMessages = async (roomId, limit = 50, cursor = null, include
     if (cursor) {
       params.cursor = cursor;
     }
-    const response = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages`, { params });
+    const response = await chatAxiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages`, { params });
     return response.data;
   } catch (error) {
     console.error('채팅방 메시지 조회 실패:', error);
@@ -44,7 +44,7 @@ export const getRoomMessages = async (roomId, limit = 50, cursor = null, include
 // 안읽은 메시지 총 개수 조회
 export const getUnreadMessageCount = async () => {
   try {
-    const response = await axiosInstance.get('/api/chat/countALLUnreadMessages');
+    const response = await chatAxiosInstance.get('/api/chat/countALLUnreadMessages');
     return response.data;
   } catch (error) {
     console.error('안읽은 메시지 개수 조회 실패:', error);
@@ -55,7 +55,7 @@ export const getUnreadMessageCount = async () => {
 // 채팅방 나가기
 export const leaveChatRoom = async (roomId) => {
   try {
-    const response = await axiosInstance.patch(`/api/chat/me/chatRooms/${roomId}`);
+    const response = await chatAxiosInstance.patch(`/api/chat/me/chatRooms/${roomId}`);
     return response.data;
   } catch (error) {
     console.error('채팅방 나가기 실패:', error);

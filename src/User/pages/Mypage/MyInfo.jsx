@@ -7,7 +7,10 @@ import SuccessModal from '../../../components/SuccessModal';
 const MyInfo = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { memberId, isLogin } = useCustomLogin();
+  const { memberId, isLogin, loginState } = useCustomLogin();
+
+  const authHeader = () =>
+    loginState?.accessToken ? { Authorization: `Bearer ${loginState.accessToken}` } : {};
 
   const [countryCode, setCountryCode] = useState('+82');
   const [localPhoneNumber, setLocalPhoneNumber] = useState('');
@@ -52,7 +55,7 @@ const MyInfo = () => {
       try {
         const res = await fetch('/api/member/me', {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeader(),
           credentials: 'include',
         });
         if (!res.ok) throw new Error('프로필 조회 실패');
@@ -91,7 +94,7 @@ const MyInfo = () => {
     if (memberId) {
       fetchProfile();
     }
-  }, [memberId, isLogin, navigate]);
+  }, [memberId, isLogin, navigate, loginState?.accessToken]);
 
   // forceRefresh 상태 감지 및 데이터 재로드
   useEffect(() => {
@@ -101,7 +104,7 @@ const MyInfo = () => {
         try {
           const res = await fetch('/api/member/me', {
             method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
+            headers: authHeader(),
             credentials: 'include',
           });
           if (!res.ok) throw new Error('프로필 조회 실패');
@@ -130,7 +133,7 @@ const MyInfo = () => {
       
       fetchProfile();
     }
-  }, [location.state, memberId, isLogin]);
+  }, [location.state, memberId, isLogin, loginState?.accessToken]);
 
   // 입력값 변경 처리 (전화번호는 따로 처리)
   const handleChange = (e) => {
@@ -191,6 +194,7 @@ const MyInfo = () => {
         method: 'PUT',
         body: formData,
         credentials: 'include',
+        headers: authHeader(),
       });
 
       if (!res.ok) throw new Error('프로필 업데이트 실패');

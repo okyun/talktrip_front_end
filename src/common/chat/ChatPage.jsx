@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Routes, Route, Link, useNavigate, useParams, useLocation, useMatch } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import axiosInstance, { API_SERVER_HOST } from '../api/mainApi';  // mainApi의 axiosInstance 사용
+import { chatAxiosInstance, getChatNativeWebSocketUrl } from '../api/mainApi';  // chat-service용 axios 사용
 import ChatRoom from './ChatRoom';
 import ChatRoomItem from './ChatRoomItem';
 import { Client } from '@stomp/stompjs';
@@ -122,9 +122,8 @@ const ChatPage = () => {
     
     const initWebSocket = async () => {
       try {
-        // 네이티브 WebSocket을 사용해 SockJS info(401) 없이 바로 연결
-        const wsBase = API_SERVER_HOST.replace(/\/$/, '').replace(/^http/, 'ws');
-        const brokerWsUrl = `${wsBase}/ws/websocket`;
+        // 네이티브 WebSocket — 로컬 Vite는 `/chat-ws/websocket` → 8090 채팅 서비스
+        const brokerWsUrl = getChatNativeWebSocketUrl();
         console.log('🔄 WebSocket 생성 중... URL:', brokerWsUrl);
         const socketFactory = () => {
           const socket = new WebSocket(brokerWsUrl);
@@ -812,7 +811,7 @@ const ChatPage = () => {
         params.append('cursor', cursor);
       }
       
-      const response = await axiosInstance.get(`/api/chat/me/chatRooms?${params.toString()}`);  // axiosInstance 사용
+      const response = await chatAxiosInstance.get(`/api/chat/me/chatRooms?${params.toString()}`);
       console.log('=== 채팅방 목록 API 응답 전체 ===');
       console.log('전체 응답 객체:', response);
       console.log('응답 상태:', response.status);
@@ -988,10 +987,11 @@ const ChatPage = () => {
     }
   };
 
-  // 초기 채팅방 목록 로드
+  // 초기 채팅방 목록 로드 — chatAxios는 쿠키 `member`의 Bearer를 쓰므로 토큰 준비 후 호출
   useEffect(() => {
+    if (!isLogin) return;
     fetchChatRooms();
-  }, []);
+  }, [isLogin, accessToken]);
 
   // 현재 경로에 따라 채팅방 링크 결정 (메모이제이션으로 최적화)
   const getChatLink = useCallback((roomId) => {

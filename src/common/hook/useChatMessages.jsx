@@ -1,6 +1,6 @@
 // src/common/hook/useChatMessages.jsx
 import { useState, useEffect, useCallback, useRef } from 'react';
-import axiosInstance from '../api/mainApi';
+import { chatAxiosInstance } from '../api/mainApi';
 
 const useChatMessages = (roomId, onRoomInfoUpdate) => {
   const [messages, setMessages] = useState([]);
@@ -80,7 +80,7 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
       
       console.log(`🚀 첫 페이지 메시지 로드 - roomId: ${roomId}`);
       // includeMessages=true로 첫 페이지 메시지를 가져오기
-      const response = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?includeMessages=true&limit=50`);
+      const response = await chatAxiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?includeMessages=true&limit=50`);
       
       console.log('📨 첫 페이지 메시지 응답:', response.data);
       
@@ -130,7 +130,7 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
       
       // fallback: includeMessages=false로 메시지만 로드
       try {
-        const fallbackResponse = await axiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?includeMessages=false&limit=50`);
+        const fallbackResponse = await chatAxiosInstance.get(`/api/chat/me/chatRooms/${roomId}/messages?includeMessages=false&limit=50`);
         
         if (fallbackResponse.data) {
           const { items = [], nextCursor = null, hasNext = false } = fallbackResponse.data;
@@ -165,7 +165,7 @@ const useChatMessages = (roomId, onRoomInfoUpdate) => {
       setLoadingOlder(true);
       
       console.log(`🔄 이전 메시지 로드 시작 - cursor: ${nextCursor}`);
-      const response = await axiosInstance.get(
+      const response = await chatAxiosInstance.get(
         `/api/chat/me/chatRooms/${roomId}/messages?includeMessages=false&limit=50&cursor=${nextCursor}`
       );
       

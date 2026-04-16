@@ -1,5 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { Client } from "@stomp/stompjs";
+import { getCookie } from "../common/util/cookieUtil";
+
+/** 메인 백엔드 STOMP 네이티브 엔드포인트 — `/ws`는 SockJS용이라 stompjs 직접 연결에 쓰면 안 됨 */
+function buildOrderStompWsUrl(): string {
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws/websocket`;
+}
+
+function makeConnectHeaders(): Record<string, string> {
+  try {
+    const fromLs = window.localStorage?.getItem("accessToken");
+    if (fromLs) return { Authorization: `Bearer ${fromLs}` };
+  } catch {
+    /* ignore */
+  }
+  const member = getCookie("member");
+  if (member?.accessToken) return { Authorization: `Bearer ${member.accessToken}` };
+  return {};
+}
 
 /**
  * 주문 완료 WebSocket 알림을 구독하는 훅.
@@ -7,7 +26,6 @@ import { Client } from "@stomp/stompjs";
  * - 백엔드에서 사용자별 채널로 메시지 발행:
  *   redisMessageBroker.publishToUserAfterCommit(email, "주문이 완료되었습니다. ...");
  * - STOMP 구독 경로 예시는 /topic/orders.{email} 로 사용한다.
- *   (실제 백엔드 STOMP 엔드포인트 설정에 맞게 dest를 수정해서 사용하면 된다.)
  */
 export function useOrderNotification(email: string | null) {
   const [message, setMessage] = useState<string | null>(null);
@@ -19,16 +37,20 @@ export function useOrderNotification(email: string | null) {
     }
 
     const client = new Client({
-      // 백엔드 WebSocket 엔드포인트 URL에 맞게 수정
-      brokerURL: "ws://localhost:8080/ws", // 예시: Spring STOMP 엔드포인트
+      webSocketFactory: () => new WebSocket(buildOrderStompWsUrl()),
       reconnectDelay: 5000,
+      heartbeatIncoming: 4000,
+      heartbeatOutgoing: 4000,
+      connectHeaders: makeConnectHeaders(),
+      beforeConnect: () => {
+        client.connectHeaders = makeConnectHeaders();
+      },
       debug: () => {
-        // 필요 시 콘솔 로그 활성화
+        /* 필요 시 활성화 */
       },
     });
 
     client.onConnect = () => {
-      // 사용자별 주문 알림 구독 경로 (백엔드에서 convertAndSend 대상과 맞춰야 함)
       const destination = `/topic/orders.${email}`;
 
       client.subscribe(destination, (frame) => {
@@ -38,7 +60,7 @@ export function useOrderNotification(email: string | null) {
     };
 
     client.onStompError = () => {
-      // 에러 로그가 필요하면 여기서 처리
+      /* 필요 시 로깅 */
     };
 
     client.activate();
@@ -54,4 +76,3 @@ export function useOrderNotification(email: string | null) {
 
   return { message, clear };
 }
-

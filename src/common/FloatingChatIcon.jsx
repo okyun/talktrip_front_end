@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useSelector } from 'react-redux';
-import axiosInstance, { API_SERVER_HOST } from './api/mainApi';
+import axiosInstance, { chatAxiosInstance, getChatSockJsUrl } from './api/mainApi';
 import { Client } from '@stomp/stompjs';
 
 const FloatingChatIcon = () => {
@@ -14,6 +14,8 @@ const FloatingChatIcon = () => {
   const isAdminUser = isLogin && isAdminRole;
   const stompClientRef = useRef(null);
   const subscriptionsRef = useRef(new Set());
+  /** cleanup에서 deactivate() 호출 시 true — 채팅 페이지 이동 등 정상 종료와 비정상 끊김 로그 구분 */
+  const intentionalDisconnectRef = useRef(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
 
   const getDotSize = (count) => {
@@ -54,7 +56,7 @@ const FloatingChatIcon = () => {
         setUnreadCount(0);
         return;
       }
-      const response = await axiosInstance.get(`/api/chat/countALLUnreadMessages`);
+      const response = await chatAxiosInstance.get(`/api/chat/countALLUnreadMessages`);
       console.log('안 읽은 메시지 개수 응답:', response.data);
       
       if (response.data && response.data.count !== undefined) {
@@ -80,10 +82,11 @@ const FloatingChatIcon = () => {
     let isMounted = true;
 
     const initWebSocket = async () => {
+      intentionalDisconnectRef.current = false;
       try {
         const SockJS = (await import('sockjs-client')).default;
         // 개발 환경: Vite proxy 사용 (상대 경로), 프로덕션: API_SERVER_HOST 사용
-        const wsUrl = API_SERVER_HOST ? `${API_SERVER_HOST}/ws` : '/ws';
+        const wsUrl = getChatSockJsUrl();
         const socket = new SockJS(wsUrl, null, {
           transports: ['websocket', 'xhr-streaming', 'xhr-polling'],
         });
@@ -118,8 +121,15 @@ const FloatingChatIcon = () => {
         };
 
         client.onDisconnect = () => {
-          console.log('❌ FloatingChatIcon WebSocket 연결 해제');
           setIsWebSocketConnected(false);
+          if (intentionalDisconnectRef.current) {
+            intentionalDisconnectRef.current = false;
+            console.debug(
+              'FloatingChatIcon: WebSocket 정리됨 (채팅 화면 이동·로그아웃·다른 페이지로 전환 시 정상)',
+            );
+            return;
+          }
+          console.warn('FloatingChatIcon: WebSocket 연결이 예기치 않게 끊어졌습니다. STOMP가 재연결을 시도할 수 있습니다.');
         };
 
         client.activate();
@@ -145,11 +155,13 @@ const FloatingChatIcon = () => {
       });
       subscriptionsRef.current.clear();
 
-      // 클라이언트 비활성화
+      // 클라이언트 비활성화 (채팅 링크 클릭 → /chat 이동 시 컴포넌트 언마운트되며 여기서 끊김 = 정상)
       if (stompClientRef.current) {
         try {
+          intentionalDisconnectRef.current = true;
           stompClientRef.current.deactivate();
         } catch (e) {
+          intentionalDisconnectRef.current = false;
           // ignore
         }
       }

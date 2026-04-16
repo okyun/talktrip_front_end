@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import axiosInstance, { API_SERVER_HOST } from '../api/mainApi';
+import { chatAxiosInstance, getChatNativeWebSocketUrl } from '../api/mainApi';
 import { getCookie } from '../util/cookieUtil';
 import { Client } from '@stomp/stompjs';
 import ChatRoom from './ChatRoom';
@@ -38,8 +38,7 @@ const GroupChatPage = () => {
 
   useEffect(() => {
     let isMounted = true;
-    const wsBase = API_SERVER_HOST.replace(/\/$/, '').replace(/^http/, 'ws');
-    const brokerWsUrl = `${wsBase}/ws/websocket`;
+    const brokerWsUrl = getChatNativeWebSocketUrl();
 
     const makeConnectHeaders = () => {
       const token = getAccessToken();
@@ -104,7 +103,7 @@ const GroupChatPage = () => {
   useEffect(() => {
     const fetchGroupRooms = async () => {
       try {
-        const res = await axiosInstance.get('/api/chat/me/chatRooms/all?roomType=GROUP');
+        const res = await chatAxiosInstance.get('/api/chat/me/chatRooms/all?roomType=GROUP');
         if (res.data && Array.isArray(res.data) && res.data.length > 0) {
           const mapped = res.data.map((room) => ({
             ...room,
