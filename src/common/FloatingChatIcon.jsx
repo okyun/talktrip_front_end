@@ -14,9 +14,24 @@ const FloatingChatIcon = () => {
   const isAdminUser = isLogin && isAdminRole;
   const stompClientRef = useRef(null);
   const subscriptionsRef = useRef(new Set());
+  const lastLoggedUnreadCountRef = useRef(null);
+  const unreadFetchSeqRef = useRef(0);
   /** cleanup에서 deactivate() 호출 시 true — 채팅 페이지 이동 등 정상 종료와 비정상 끊김 로그 구분 */
   const intentionalDisconnectRef = useRef(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+
+  const isDebugEnabled = (() => {
+    try {
+      return import.meta.env.DEV && window?.localStorage?.getItem('DEBUG_CHAT_ICON') === '1';
+    } catch (_) {
+      return false;
+    }
+  })();
+
+  const debugLog = (...args) => {
+    if (!isDebugEnabled) return;
+    console.log(...args);
+  };
 
   const getDotSize = (count) => {
     if (!count || count <= 0) return 0;
@@ -49,22 +64,79 @@ const FloatingChatIcon = () => {
   // 안 읽은 메시지 개수 가져오기
   const fetchUnreadCount = async () => {
     try {
-      console.log('=== 안 읽은 메시지 개수 API 호출 ===');
+      const seq = ++unreadFetchSeqRef.current;
+      const ts = new Date().toLocaleTimeString();
+      debugLog(`=== 안 읽은 메시지 개수 API 호출 (#${seq}) [${ts}] path=${location.pathname} ===`);
       const userId = loginState?.id;
       if (!userId) {
-        console.log('로그인 사용자 ID가 없어 미읽음 수 조회를 건너뜁니다.');
+        debugLog('로그인 사용자 ID가 없어 미읽음 수 조회를 건너뜁니다.');
         setUnreadCount(0);
         return;
       }
-      const response = await chatAxiosInstance.get(`/api/chat/countALLUnreadMessages`);
-      console.log('안 읽은 메시지 개수 응답:', response.data);
-      
-      if (response.data && response.data.count !== undefined) {
-        setUnreadCount(response.data.count);
-        console.log('안 읽은 메시지 개수:', response.data.count);
-      } else {
-        console.log('응답 데이터에 count가 없습니다:', response.data);
-        setUnreadCount(0);
+
+      // ChatPage와 동일한 기준으로 "미읽음"을 계산하기 위해 채팅방 목록에서 notReadMessageCount를 합산
+      // (countALLUnreadMessages 엔드포인트와 결과가 달라질 수 있어 기준을 통일)
+      let cursor = null;
+      let hasNext = true;
+      let safety = 0;
+      let totalUnread = 0;
+
+      while (hasNext && safety < 10) {
+        safety += 1;
+        const params = new URLSearchParams();
+        params.append('limit', '200');
+        if (cursor) params.append('cursor', cursor);
+
+        const response = await chatAxiosInstance.get(`/api/chat/me/chatRooms?${params.toString()}`);
+        const data = response?.data;
+        debugLog('채팅방 목록 응답(미읽음 계산용):', data);
+
+        if (data && Array.isArray(data.items)) {
+          // SliceResponse 형태
+          const items = data.items;
+          cursor = data.nextCursor ?? null;
+          hasNext = Boolean(data.hasNext);
+
+          for (const room of items) {
+            const raw =
+              room?.notReadMessageCount ??
+              room?.unreadCount ??
+              room?.not_read_message_count ??
+              room?.unread_count ??
+              room?.notReadCount ??
+              room?.unReadMessageCount ??
+              0;
+            const n = Number(raw ?? 0);
+            if (Number.isFinite(n) && n > 0) totalUnread += n;
+          }
+        } else if (Array.isArray(data)) {
+          // 배열 형태(구형)
+          hasNext = false;
+          for (const room of data) {
+            const raw =
+              room?.notReadMessageCount ??
+              room?.unreadCount ??
+              room?.not_read_message_count ??
+              room?.unread_count ??
+              room?.notReadCount ??
+              room?.unReadMessageCount ??
+              0;
+            const n = Number(raw ?? 0);
+            if (Number.isFinite(n) && n > 0) totalUnread += n;
+          }
+        } else {
+          // 예상치 못한 응답
+          hasNext = false;
+        }
+      }
+
+      const nextCount = Number.isFinite(totalUnread) && totalUnread >= 0 ? totalUnread : 0;
+      setUnreadCount(nextCount);
+      if (lastLoggedUnreadCountRef.current !== nextCount) {
+        console.log(
+          `안 읽은 메시지 개수: ${nextCount} (path=${location.pathname}, at=${new Date().toLocaleTimeString()})`,
+        );
+        lastLoggedUnreadCountRef.current = nextCount;
       }
     } catch (error) {
       console.error('안 읽은 메시지 개수 가져오기 실패:', error);
@@ -102,7 +174,7 @@ const FloatingChatIcon = () => {
           beforeConnect: () => {
             client.connectHeaders = makeConnectHeaders();
           },
-          debug: (msg) => console.log('STOMP ICON DEBUG:', msg),
+          debug: (msg) => debugLog('STOMP ICON DEBUG:', msg),
         });
 
         client.onConnect = async () => {
@@ -169,14 +241,22 @@ const FloatingChatIcon = () => {
     };
   }, [isLogin, accessToken, location.pathname]);
 
-  // 미읽음 수는 채팅 페이지 여부와 상관없이 조회 (로그 확인 목적 포함)
+  // 미읽음 수는 라우트 변경/주기적으로 최신화 (배지 계속 켜짐 방지)
   useEffect(() => {
     if (!isLogin) {
       setUnreadCount(0);
       return;
     }
+    // 라우트가 바뀔 때마다 즉시 한번 갱신
     fetchUnreadCount();
-  }, [isLogin, accessToken]);
+
+    // 백그라운드에서 주기적으로 갱신 (읽음 처리/서버 상태 반영)
+    const intervalId = setInterval(() => {
+      fetchUnreadCount();
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [isLogin, accessToken, location.pathname]);
 
   // 비로그인 또는 chat/admin/chat 페이지에서는 아이콘 숨김
   if (!isLogin || location.pathname.startsWith('/chat') || location.pathname.startsWith('/admin/chat')) {
@@ -203,7 +283,7 @@ const FloatingChatIcon = () => {
           d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
         />
       </svg>
-      {unreadCount > 0 && (
+      {Number(unreadCount) > 0 && (
         <span
           className="absolute bg-red-500 rounded-full animate-pulse"
           style={{
