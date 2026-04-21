@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { chatAxiosInstance } from '../api/mainApi';
 
-const SellerInfo = ({ sellerName, email, phoneNum, sellerId, productId }) => {
+const SellerInfo = ({ sellerName, email, phoneNum, sellerId, productId, productName }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const navigate = useNavigate();
   
@@ -28,6 +28,8 @@ const SellerInfo = ({ sellerName, email, phoneNum, sellerId, productId }) => {
       const response = await chatAxiosInstance.post('/api/chat/rooms/enter', {
         sellerAccountEmail: sellerAccountEmail,
         productId: productId,
+        productName: productName,
+        title: productName,
       });
       
       console.log('채팅방 응답:', response.data);

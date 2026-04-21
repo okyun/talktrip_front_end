@@ -624,6 +624,7 @@ const CommerceDetail = () => {
           email={product?.email}
           phoneNum={product?.phoneNum}
           productId={product?.id}
+          productName={product?.title}
         />
 
         {/* AI 리뷰 요약 */}
