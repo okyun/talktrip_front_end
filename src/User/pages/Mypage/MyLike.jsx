@@ -160,9 +160,9 @@ const MyLike = () => {
           <>
                          {/* 상품 그리드 */}
              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-               {likes.map((like) => (
+               {likes.map((like, idx) => (
                  <div
-                   key={like.id}
+                   key={like.productId ?? like.id ?? idx}
                    className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 flex flex-col relative border border-white/20 hover:scale-105 group"
                  >
                                        <img 
