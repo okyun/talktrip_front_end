@@ -176,11 +176,12 @@ const FloatingChatIcon = () => {
           },
           debug: (msg) => debugLog('STOMP ICON DEBUG:', msg),
         });
+        // 연결이 완전히 성립되기 전에도 cleanup에서 deactivate 할 수 있게 미리 ref에 저장
+        stompClientRef.current = client;
 
         client.onConnect = async () => {
           if (!isMounted) return;
           console.log('✅ FloatingChatIcon WebSocket 연결 성공');
-          stompClientRef.current = client;
           setIsWebSocketConnected(true);
 
           // WebSocket 연결만 하고 채팅방 구독은 하지 않음
@@ -201,7 +202,21 @@ const FloatingChatIcon = () => {
             );
             return;
           }
-          console.warn('FloatingChatIcon: WebSocket 연결이 예기치 않게 끊어졌습니다. STOMP가 재연결을 시도할 수 있습니다.');
+          // onDisconnect는 재연결 과정에서도 호출될 수 있어 경고는 onWebSocketClose에서만 출력
+          console.debug('FloatingChatIcon: STOMP disconnected (may reconnect)');
+        };
+
+        client.onWebSocketClose = () => {
+          setIsWebSocketConnected(false);
+          if (!isMounted) return;
+          if (intentionalDisconnectRef.current) return;
+          console.warn(
+            'FloatingChatIcon: WebSocket 연결이 예기치 않게 끊어졌습니다. STOMP가 재연결을 시도할 수 있습니다.',
+          );
+        };
+
+        client.onWebSocketError = () => {
+          setIsWebSocketConnected(false);
         };
 
         client.activate();

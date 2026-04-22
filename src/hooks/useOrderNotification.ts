@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { Client } from "@stomp/stompjs";
 import { getCookie } from "../common/util/cookieUtil";
 
-/** 메인 백엔드 STOMP 네이티브 엔드포인트 — `/ws`는 SockJS용이라 stompjs 직접 연결에 쓰면 안 됨 */
-function buildOrderStompWsUrl(): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${protocol}//${window.location.host}/ws/websocket`;
+/**
+ * 주문 알림 STOMP 엔드포인트.
+ *
+ * - 개발: Vite 프록시(`/ws` -> 8080)를 타도록 상대경로 사용
+ * - 운영: 동일 오리진(nginx)에서 `/ws`로 프록시된다고 가정
+ */
+function getOrderSockJsUrl(): string {
+  return "/ws";
 }
 
 function makeConnectHeaders(): Record<string, string> {
@@ -36,37 +40,57 @@ export function useOrderNotification(email: string | null) {
       return;
     }
 
-    const client = new Client({
-      webSocketFactory: () => new WebSocket(buildOrderStompWsUrl()),
-      reconnectDelay: 5000,
-      heartbeatIncoming: 4000,
-      heartbeatOutgoing: 4000,
-      connectHeaders: makeConnectHeaders(),
-      beforeConnect: () => {
-        client.connectHeaders = makeConnectHeaders();
-      },
-      debug: () => {
-        /* 필요 시 활성화 */
-      },
+    let isMounted = true;
+    let disconnecting = false;
+
+    const activate = async () => {
+      const SockJS = (await import("sockjs-client")).default;
+      const socket = new SockJS(getOrderSockJsUrl(), null, {
+        transports: ["websocket", "xhr-streaming", "xhr-polling"],
+      });
+
+      const client = new Client({
+        // SockJS 인스턴스는 STOMP가 요구하는 WebSocket 인터페이스를 만족
+        webSocketFactory: () => socket as any,
+        reconnectDelay: 5000,
+        heartbeatIncoming: 4000,
+        heartbeatOutgoing: 4000,
+        connectHeaders: makeConnectHeaders(),
+        beforeConnect: () => {
+          client.connectHeaders = makeConnectHeaders();
+        },
+        debug: () => {
+          /* 필요 시 활성화 */
+        },
+      });
+
+      client.onConnect = () => {
+        if (!isMounted) return;
+
+        const destination = `/topic/orders.${email}`;
+        client.subscribe(destination, (frame) => {
+          const body = frame.body || "";
+          setMessage(body || "주문이 완료되었습니다.");
+        });
+      };
+
+      client.onStompError = () => {
+        /* 필요 시 로깅 */
+      };
+
+      client.activate();
+      clientRef.current = client;
+    };
+
+    activate().catch(() => {
+      // 연결 실패 시엔 stompjs 내부 재연결 로직이 없으므로, 다음 렌더 사이클에서 재시도되게 둔다.
     });
 
-    client.onConnect = () => {
-      const destination = `/topic/orders.${email}`;
-
-      client.subscribe(destination, (frame) => {
-        const body = frame.body || "";
-        setMessage(body || "주문이 완료되었습니다.");
-      });
-    };
-
-    client.onStompError = () => {
-      /* 필요 시 로깅 */
-    };
-
-    client.activate();
-    clientRef.current = client;
-
     return () => {
+      isMounted = false;
+      if (!disconnecting) {
+        disconnecting = true;
+      }
       clientRef.current?.deactivate();
       clientRef.current = null;
     };
