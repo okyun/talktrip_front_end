@@ -1,8 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'node:path'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // 루트(.env)로 환경변수를 모아둔 경우에도 front_end에서 정상 로드되게 함
+  // (Vite는 VITE_ 접두사만 import.meta.env로 노출)
+  envDir: resolve(__dirname, '..', '..'),
   plugins: [react()],
   server: {
     proxy: {

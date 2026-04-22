@@ -5,6 +5,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
 
+const isValidTossClientKey = (key) =>
+    typeof key === "string" &&
+    /^(test|live)_(gck|ck)_[0-9A-Za-z_-]+$/.test(key);
+
 const Checkout = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -43,6 +47,13 @@ const Checkout = () => {
     async function fetchPaymentWidgets() {
       try {
         console.log('토스 페이먼츠 위젯 초기화 중...');
+        if (!isValidTossClientKey(clientKey)) {
+          console.error("VITE_TOSS_CLIENT_KEY가 올바르지 않습니다.", { clientKey });
+          setError(
+            "결제 시스템 설정이 올바르지 않습니다. (Toss ClientKey 형식: test_ck_... 또는 live_ck_...)"
+          );
+          return;
+        }
         const tossPayments = await loadTossPayments(clientKey);
         const widgets = tossPayments.widgets({
           // 비회원 결제 시 customerKey: ANONYMOUS
@@ -53,7 +64,19 @@ const Checkout = () => {
         console.log('토스 페이먼츠 위젯 초기화 완료');
       } catch (error) {
         console.error('토스 페이먼츠 위젯 초기화 실패:', error);
-        setError('결제 시스템 초기화에 실패했습니다.');
+        const msg =
+          error instanceof Error ? error.message : String(error ?? '');
+        if (
+          msg.includes('결제위젯') ||
+          msg.includes('API 개별') ||
+          msg.includes('payment widget')
+        ) {
+          setError(
+            'VITE_TOSS_CLIENT_KEY에 API 개별 연동 키가 들어가 있습니다. 토스 개발자센터(developers.tosspayments.com) → 내 애플리케이션 → 결제위젯 연동 메뉴의 클라이언트 키로 교체한 뒤, 저장소 루트 .env를 수정하고 개발 서버를 재시작하세요.'
+          );
+        } else {
+          setError('결제 시스템 초기화에 실패했습니다.');
+        }
       }
     }
 

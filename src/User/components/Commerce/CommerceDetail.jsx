@@ -13,6 +13,13 @@ const getKoreaDateString = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+// startDate 포맷 정규화 (YYYY-MM-DD만 사용)
+const normalizeYmd = (value) => {
+  if (!value) return '';
+  // "2026-04-27", "2026-04-27T00:00:00", "2026-04-27 00:00:00" 모두 대응
+  return String(value).trim().slice(0, 10);
+};
+
 // 달력 컴포넌트
 const Calendar = ({ availableDates, selectedDate, onDateSelect }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -50,7 +57,7 @@ const Calendar = ({ availableDates, selectedDate, onDateSelect }) => {
   // 날짜가 재고가 있는 날짜인지 확인 (일관된 날짜 형식 사용)
   const isAvailableDate = (date) => {
     const dateString = getKoreaDateString(date);
-    return availableDates.includes(dateString);
+    return availableDates.includes(normalizeYmd(dateString));
   };
 
   // 날짜가 오늘 이후인지 확인
@@ -74,7 +81,7 @@ const Calendar = ({ availableDates, selectedDate, onDateSelect }) => {
     if (isAvailableDate(date) && isFutureDate(date)) {
       // 일관된 날짜 형식 사용
       const dateString = getKoreaDateString(date);
-      onDateSelect(dateString);
+      onDateSelect(normalizeYmd(dateString));
     }
   };
   
@@ -194,7 +201,10 @@ const CommerceDetail = () => {
         countryName: response.countryName,
         hashtags: response.hashtags || [],
         images: response.images || [],
-        stocks: response.stocks || [],
+        stocks: (response.stocks || []).map((s) => ({
+          ...s,
+          startDate: normalizeYmd(s.startDate),
+        })),
         rating: response.averageReviewStar,
         reviews: response.reviews || [],
         reviewStats: response.reviewStats,
@@ -216,7 +226,7 @@ const CommerceDetail = () => {
         
         // 재고가 있는 날짜들을 오늘 이후로 필터링하고 정렬
         const availableDates = transformedProduct.stocks
-          .map(stock => stock.startDate)
+          .map(stock => normalizeYmd(stock.startDate))
           .filter((date, index, self) => self.indexOf(date) === index)
           .filter(date => {
             return date >= todayString;
@@ -354,7 +364,7 @@ const CommerceDetail = () => {
   // 재고가 있는 날짜들만 필터링
   const availableDates = product?.stocks
     ? product.stocks
-        .map(stock => stock.startDate)
+        .map(stock => normalizeYmd(stock.startDate))
         .filter((date, index, self) => self.indexOf(date) === index)
         .sort()
     : [];
