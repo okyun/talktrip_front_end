@@ -7,7 +7,7 @@ export const getProductStatsTop = async (limit = 10) => {
   return response.data;
 };
 
-// 관리자 상품 클릭 통계 (15분 윈도우, TOP N)
+// 관리자 상품 클릭 통계 (3분 윈도우, TOP N)
 export const getProductClickStats = async (limit = 10) => {
   const params = new URLSearchParams();
   params.append('limit', limit);
