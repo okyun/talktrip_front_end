@@ -1,5 +1,18 @@
 import axiosInstance from './mainApi';
 
+const unwrapAxiosValue = (response) => response?.data ?? response;
+
+const readHeader = (rawResponse, name) => {
+  if (!rawResponse || !rawResponse.headers) return null;
+  // axios는 헤더 키를 lower-case로 정규화하는 경우가 많다.
+  const lower = String(name).toLowerCase();
+  return (
+    rawResponse.headers[name] ||
+    rawResponse.headers[lower] ||
+    null
+  );
+};
+
 export const getProductStatsTop = async (limit = 10) => {
   const params = new URLSearchParams();
   params.append('limit', limit);
@@ -10,11 +23,38 @@ export const getProductStatsTop = async (limit = 10) => {
 };
 
 // 관리자 상품 클릭 통계 (3분 윈도우, TOP N)
-export const getProductClickStats = async (limit = 10) => {
+export const getProductClickStats = async (limit = 10, { onlyCurrentWindow = true } = {}) => {
   const params = new URLSearchParams();
   params.append('limit', limit);
+  if (onlyCurrentWindow) {
+    params.append('onlyCurrentWindow', 'true');
+  }
   const response = await axiosInstance.get(`/api/stats/products/clicks?${params.toString()}`);
-  return response?.data ?? response;
+
+  // 배열(레거시/래핑) + 헤더 메타(현재 윈도우) 동시 지원
+  const raw = response;
+  const value = unwrapAxiosValue(response);
+
+  if (Array.isArray(value)) {
+    return {
+      items: value,
+      windowStartMs: readHeader(raw, 'X-TalkTrip-Window-Start-Ms') ||
+        readHeader(raw, 'x-talktrip-window-start-ms'),
+      windowEndMs: readHeader(raw, 'X-TalkTrip-Window-End-Ms') ||
+        readHeader(raw, 'x-talktrip-window-end-ms'),
+    };
+  }
+
+  // 혹시 모를 래핑 응답
+  if (value && Array.isArray(value.items)) {
+    return {
+      items: value.items,
+      windowStartMs: value.windowStartMs ?? readHeader(raw, 'X-TalkTrip-Window-Start-Ms'),
+      windowEndMs: value.windowEndMs ?? readHeader(raw, 'X-TalkTrip-Window-End-Ms'),
+    };
+  }
+
+  return { items: [], windowStartMs: null, windowEndMs: null };
 };
 
 // 관리자 상품 목록 조회 (기본)
