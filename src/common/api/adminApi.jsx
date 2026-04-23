@@ -4,7 +4,9 @@ export const getProductStatsTop = async (limit = 10) => {
   const params = new URLSearchParams();
   params.append('limit', limit);
   const response = await axiosInstance.get(`/api/stats/products/top?${params.toString()}`);
-  return response.data;
+  // axios interceptor가 response를 그대로 반환하거나(response.data 접근 필요),
+  // data만 반환하도록 바뀌는 경우(그 자체가 data) 모두 대응
+  return response?.data ?? response;
 };
 
 // 관리자 상품 클릭 통계 (3분 윈도우, TOP N)
@@ -12,7 +14,7 @@ export const getProductClickStats = async (limit = 10) => {
   const params = new URLSearchParams();
   params.append('limit', limit);
   const response = await axiosInstance.get(`/api/stats/products/clicks?${params.toString()}`);
-  return response.data;
+  return response?.data ?? response;
 };
 
 // 관리자 상품 목록 조회 (기본)

@@ -68,7 +68,7 @@ const AdminProductClickStatsPage = () => {
               </thead>
               <tbody>
                 {data.map((item, idx) => (
-                  <tr key={item.productId} className="border-b last:border-0">
+                  <tr key={`${item.productId}-${item.windowStart}`} className="border-b last:border-0">
                     <td className="px-3 py-2 text-gray-800">#{idx + 1}</td>
                     <td className="px-3 py-2 text-gray-800">{item.productId}</td>
                     <td className="px-3 py-2 text-right text-gray-800">{(item.clickCount || 0).toLocaleString()}</td>

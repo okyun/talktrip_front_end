@@ -9,10 +9,26 @@ export default defineConfig({
   envDir: resolve(__dirname, '..', '..'),
   plugins: [react()],
   server: {
+    // npm script와 동일하게 고정: 포트가 바뀌면 HMR이 잘못된 포트로 붙을 수 있음
+    port: 5173,
+    strictPort: true,
+    // HMR WebSocket: localhost/127.0.0.1 혼용, IPv6, 방화벽 이슈 시 연결 실패 방지
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 5173,
+    },
     proxy: {
       /* 채팅 REST는 talktrip-chatting-service(8090). `/api`보다 먼저 등록해야 매칭됨 */
       '/api/chat': {
         target: 'http://localhost:8090',
+        changeOrigin: true,
+      },
+      /* 통계 API는 talktrip-stats-service(로컬 8082) */
+      '/api/stats': {
+        // 도커 compose로 stats-service를 올린 경우: 호스트 포트는 18082
+        // 필요 시 실행 환경에 맞게 `STATS_API_TARGET=http://localhost:8082`로 덮어쓰기 가능
+        target: process.env.STATS_API_TARGET || 'http://localhost:18082',
         changeOrigin: true,
       },
       '/api': {
