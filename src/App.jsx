@@ -32,6 +32,7 @@ import AdminOrderDetail from './Admin/pages/AdminOrder/AdminOrderDetailPage';
 import AdminProfilePage from './Admin/pages/AdminProfile/AdminProfilePage';
 import AdminProductStatsPage from './Admin/pages/AdminStats/AdminProductStatsPage';
 import AdminProductClickStatsPage from './Admin/pages/AdminStats/AdminProductClickStatsPage';
+import AdminOrderPurchaseStatsPage from './Admin/pages/AdminStats/AdminOrderPurchaseStatsPage';
 import { OrderNotificationToast } from './components/OrderNotificationToast';
 
 function App() {
@@ -119,6 +120,11 @@ function App() {
             <Route path="/admin/product-click-stats" element={
               <AdminProtectedRoute>
                 <AdminProductClickStatsPage />
+              </AdminProtectedRoute>
+            } />
+            <Route path="/admin/order-purchase-stats" element={
+              <AdminProtectedRoute>
+                <AdminOrderPurchaseStatsPage />
               </AdminProtectedRoute>
             } />
           </Route>

@@ -22,10 +22,13 @@ export const getProductStatsTop = async (limit = 10) => {
   return response?.data ?? response;
 };
 
-// 관리자 상품 클릭 통계 (3분 윈도우, TOP N)
-export const getProductClickStats = async (limit = 10, { onlyCurrentWindow = true } = {}) => {
+// 관리자 상품 클릭 통계 (30분 윈도우, TOP N)
+export const getProductClickStats = async (limit = 10, { onlyCurrentWindow = true, windowStartTime } = {}) => {
   const params = new URLSearchParams();
   params.append('limit', limit);
+  if (windowStartTime != null) {
+    params.append('windowStartTime', String(windowStartTime));
+  }
   if (onlyCurrentWindow) {
     params.append('onlyCurrentWindow', 'true');
   }
@@ -55,6 +58,47 @@ export const getProductClickStats = async (limit = 10, { onlyCurrentWindow = tru
   }
 
   return { items: [], windowStartMs: null, windowEndMs: null };
+};
+
+// 관리자 구매 통계 (TOP3)
+// - stats-service(호환): GET /api/stats/orders/purchases?limit=3&windowStartTime=...&onlyCurrentWindow=true
+// - 30분 윈도우 기준 (00:00부터 30분 단위)
+export const getOrderPurchaseStatsTop3 = async ({ windowStartTime, onlyCurrentWindow = true } = {}) => {
+  const params = new URLSearchParams();
+  params.append('limit', '3');
+  if (onlyCurrentWindow) {
+    params.append('onlyCurrentWindow', 'true');
+  }
+  if (windowStartTime != null) {
+    params.append('windowStartTime', String(windowStartTime));
+  }
+
+  const response = await axiosInstance.get(`/api/stats/orders/purchases?${params.toString()}`);
+  const raw = response;
+  const value = unwrapAxiosValue(response);
+  if (Array.isArray(value)) {
+    return {
+      items: value.slice(0, 3),
+      windowStartMs: readHeader(raw, 'X-TalkTrip-Window-Start-Ms') ||
+        readHeader(raw, 'x-talktrip-window-start-ms'),
+      windowEndMs: readHeader(raw, 'X-TalkTrip-Window-End-Ms') ||
+        readHeader(raw, 'x-talktrip-window-end-ms'),
+    };
+  }
+  if (value && Array.isArray(value.items)) {
+    return {
+      items: value.items.slice(0, 3),
+      windowStartMs: value.windowStartMs ?? readHeader(raw, 'X-TalkTrip-Window-Start-Ms'),
+      windowEndMs: value.windowEndMs ?? readHeader(raw, 'X-TalkTrip-Window-End-Ms'),
+    };
+  }
+  return {
+    items: [],
+    windowStartMs: readHeader(raw, 'X-TalkTrip-Window-Start-Ms') ||
+      readHeader(raw, 'x-talktrip-window-start-ms'),
+    windowEndMs: readHeader(raw, 'X-TalkTrip-Window-End-Ms') ||
+      readHeader(raw, 'x-talktrip-window-end-ms'),
+  };
 };
 
 // 관리자 상품 목록 조회 (기본)

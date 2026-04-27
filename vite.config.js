@@ -31,6 +31,15 @@ export default defineConfig({
         target: process.env.STATS_API_TARGET || 'http://localhost:18082',
         changeOrigin: true,
       },
+      /* stats-service의 신규 API도 프록시 (admin 구매 통계 페이지에서 사용) */
+      '/api/statistics': {
+        target: process.env.STATS_API_TARGET || 'http://localhost:18082',
+        changeOrigin: true,
+      },
+      '/api/streams': {
+        target: process.env.STATS_API_TARGET || 'http://localhost:18082',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
