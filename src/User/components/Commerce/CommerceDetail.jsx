@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { getProductDetail, toggleLike } from '../../../common/api/productApi';
 import SellerInfo from '../../../common/components/SellerInfo';
 import ReviewSummary from './ReviewSummary';
+import { useCustomLogin } from '../../../common/hook/useCustomLogin';
 
 // 한국 시간 기준으로 날짜 문자열 생성 (공통 함수)
 const getKoreaDateString = (date) => {
@@ -168,6 +169,7 @@ const Calendar = ({ availableDates, selectedDate, onDateSelect }) => {
 const CommerceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { memberId } = useCustomLogin();
   
   // 상태 관리
   const [product, setProduct] = useState(null);
@@ -186,7 +188,7 @@ const CommerceDetail = () => {
     
     try {
       console.log('상품 상세 조회 중...', id);
-      const response = await getProductDetail(id);
+      const response = await getProductDetail(id, memberId);
       console.log('상품 상세 응답:', response);
       
       // 백엔드 응답을 프론트엔드 구조로 변환
@@ -293,7 +295,7 @@ const CommerceDetail = () => {
     if (id) {
       loadProductDetail();
     }
-  }, [id]);
+  }, [id, memberId]);
 
   const handleToggleLike = async () => {
     try {

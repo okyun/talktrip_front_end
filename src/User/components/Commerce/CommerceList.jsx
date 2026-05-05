@@ -16,7 +16,8 @@ const CommerceList = () => {
   const [sort, setSort] = useState("updatedAt");
   const [sortOrder, setSortOrder] = useState("desc"); // asc, desc
   const [isAISearch, setIsAISearch] = useState(false);
-  const [selectedCountry, setSelectedCountry] = useState("전체"); // 선택된 국가
+  /** null = 전체, 그 외 ISO country_id (FR, IT, JP …) */
+  const [selectedCountryId, setSelectedCountryId] = useState(null);
 
   // 상품 상태 관리
   const [products, setProducts] = useState([]);
@@ -28,19 +29,19 @@ const CommerceList = () => {
   const [totalItems, setTotalItems] = useState(0);
   const itemsPerPage = 9; // 페이지당 아이템 개수
 
-  // 주요 여행국가 목록
+  // 주요 여행국가 — API 는 country_id(ISO) 쿼리로 전달 (DB product.country_id)
   const countries = [
-    { name: '전체', flag: '🌍', color: 'bg-gray-600 hover:bg-gray-700' },
-    { name: '프랑스', flag: '🗼', color: 'bg-blue-500 hover:bg-blue-600' },
-    { name: '이탈리아', flag: '🍕', color: 'bg-green-500 hover:bg-green-600' },
-    { name: '일본', flag: '🗾', color: 'bg-red-500 hover:bg-red-600' },
-    { name: '미국', flag: '🗽', color: 'bg-blue-600 hover:bg-blue-700' },
-    { name: '한국', flag: '🏯', color: 'bg-red-600 hover:bg-red-700' },
-    { name: '호주', flag: '🦘', color: 'bg-blue-400 hover:bg-blue-500' },
-    { name: '태국', flag: '🐘', color: 'bg-blue-500 hover:bg-blue-600' },
-    { name: '스페인', flag: '🐂', color: 'bg-red-500 hover:bg-red-600' },
-    { name: '멕시코', flag: '🌵', color: 'bg-green-600 hover:bg-green-700' },
-    { name: '싱가포르', flag: '🦁', color: 'bg-red-500 hover:bg-red-600' }
+    { name: '전체', countryId: null, flag: '🌍', color: 'bg-gray-600 hover:bg-gray-700' },
+    { name: '프랑스', countryId: 'FR', flag: '🗼', color: 'bg-blue-500 hover:bg-blue-600' },
+    { name: '이탈리아', countryId: 'IT', flag: '🍕', color: 'bg-green-500 hover:bg-green-600' },
+    { name: '일본', countryId: 'JP', flag: '🗾', color: 'bg-red-500 hover:bg-red-600' },
+    { name: '미국', countryId: 'US', flag: '🗽', color: 'bg-blue-600 hover:bg-blue-700' },
+    { name: '한국', countryId: 'KR', flag: '🏯', color: 'bg-red-600 hover:bg-red-700' },
+    { name: '호주', countryId: 'AU', flag: '🦘', color: 'bg-blue-400 hover:bg-blue-500' },
+    { name: '태국', countryId: 'TH', flag: '🐘', color: 'bg-blue-500 hover:bg-blue-600' },
+    { name: '스페인', countryId: 'ES', flag: '🐂', color: 'bg-red-500 hover:bg-red-600' },
+    { name: '멕시코', countryId: 'MX', flag: '🌵', color: 'bg-green-600 hover:bg-green-700' },
+    { name: '싱가포르', countryId: 'SG', flag: '🦁', color: 'bg-red-500 hover:bg-red-600' }
   ];
 
   // 페이지 새로고침 감지 및 처리
@@ -70,25 +71,25 @@ const CommerceList = () => {
     
     // AI 검색이 아닐 때만 전체 상품 로드
     if (!isAISearch && !aiSearchQuery) {
-      loadProducts(0, '', sort, sortOrder, selectedCountry);
+      loadProducts(0, '', sort, sortOrder, selectedCountryId);
     }
   }, []); // 빈 의존성 배열로 컴포넌트 마운트 시에만 실행
 
   // 초기 상품 목록 로드
-  const loadProducts = async (pageNum = 0, keyword = '', sort = 'updatedAt', sortOrder = 'desc', country = '전체') => {
+  const loadProducts = async (pageNum = 0, keyword = '', sort = 'updatedAt', sortOrder = 'desc', countryId = null) => {
     setLoading(true);
     setError('');
     setIsAISearch(false); // 일반 검색으로 플래그 해제
     
     try {
-      console.log('상품 목록 조회 중...', { page: pageNum, size: itemsPerPage, keyword, sort, sortOrder, country });
+      console.log('상품 목록 조회 중...', { page: pageNum, size: itemsPerPage, keyword, sort, sortOrder, countryId });
       const response = await getProductList({
         page: pageNum,
         size: itemsPerPage,
         keyword: keyword,
         sort: sort,
         sortOrder: sortOrder,
-        country: country
+        countryId: countryId || undefined,
       });
       
       console.log('상품 목록 응답:', response);
@@ -185,7 +186,7 @@ const CommerceList = () => {
     setIsAISearch(false);
     setPage(1);
     setError('');
-    setSelectedCountry("전체");
+    setSelectedCountryId(null);
   };
 
   // AI 검색봇 핸들러
@@ -345,7 +346,7 @@ const CommerceList = () => {
     // 강제 새로고침인 경우
     else if (forceRefresh) {
       resetToInitialState();
-      loadProducts(0, '', sort, sortOrder, selectedCountry);
+      loadProducts(0, '', sort, sortOrder, selectedCountryId);
     }
     // 일반 진입인 경우 - 초기 로드 useEffect에서 처리하므로 여기서는 아무것도 하지 않음
   }, []);
@@ -475,7 +476,7 @@ const CommerceList = () => {
   const handlePageChange = (newPage) => {
     setPage(newPage);
     const pageIndex = newPage - 1;
-    loadProducts(pageIndex, search, sort, sortOrder, selectedCountry);
+    loadProducts(pageIndex, search, sort, sortOrder, selectedCountryId);
   };
 
   // 검색 버튼 클릭 시
@@ -483,7 +484,7 @@ const CommerceList = () => {
     setSearch(inputValue); // inputValue를 실제 검색어로 설정
     setIsAISearch(false); // 일반 검색으로 플래그 해제
     setPage(1);
-    loadProducts(0, inputValue, sort, sortOrder, selectedCountry);
+    loadProducts(0, inputValue, sort, sortOrder, selectedCountryId);
   };
 
   return (
@@ -532,7 +533,7 @@ const CommerceList = () => {
                 setTotalItems(0);
                 setError('');
                 // 전체 상품 로드
-                loadProducts(0, '', sort, sortOrder, selectedCountry);
+                loadProducts(0, '', sort, sortOrder, selectedCountryId);
               }}
               className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white rounded-lg transition-all duration-300 hover:scale-105"
             >
@@ -594,7 +595,7 @@ const CommerceList = () => {
                 }
                 setSort(newSort);
                 setPage(1);
-                loadProducts(0, search, newSort, sortOrder, selectedCountry);
+                loadProducts(0, search, newSort, sortOrder, selectedCountryId);
               }}
               className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
             >
@@ -616,7 +617,7 @@ const CommerceList = () => {
                 }
                 setSortOrder(newSortOrder);
                 setPage(1);
-                loadProducts(0, search, sort, newSortOrder, selectedCountry);
+                loadProducts(0, search, sort, newSortOrder, selectedCountryId);
               }}
               className="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-300"
             >
@@ -649,22 +650,14 @@ const CommerceList = () => {
               <button
                 key={index}
                 onClick={() => {
-                  // 이미 선택된 나라를 클릭한 경우 중복 호출 방지
-                  if (selectedCountry === country.name) {
+                  if (selectedCountryId === country.countryId) {
                     return;
                   }
-                  
-                  setSelectedCountry(country.name);
+                  setSelectedCountryId(country.countryId);
                   setPage(1);
-                  if (country.name === '전체') {
-                    // 전체 버튼 클릭 시 검색어는 유지하되 국가만 초기화
-                    loadProducts(0, search, sort, sortOrder, '전체');
-                  } else {
-                    // 특정 국가 버튼 클릭 시 검색어는 유지하되 국가 필터 추가
-                    loadProducts(0, search, sort, sortOrder, country.name);
-                  }
+                  loadProducts(0, search, sort, sortOrder, country.countryId);
                 }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 hover:shadow-lg ${country.color} text-white ${selectedCountry === country.name ? 'ring-2 ring-black ring-opacity-80 shadow-lg' : ''}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 hover:shadow-lg ${country.color} text-white ${selectedCountryId === country.countryId ? 'ring-2 ring-black ring-opacity-80 shadow-lg' : ''}`}
               >
                 <span className="text-lg">{country.flag}</span>
                 <span>{country.name}</span>
@@ -677,22 +670,14 @@ const CommerceList = () => {
               <button
                 key={index + 6}
                 onClick={() => {
-                  // 이미 선택된 나라를 클릭한 경우 중복 호출 방지
-                  if (selectedCountry === country.name) {
+                  if (selectedCountryId === country.countryId) {
                     return;
                   }
-                  
-                  setSelectedCountry(country.name);
+                  setSelectedCountryId(country.countryId);
                   setPage(1);
-                  if (country.name === '전체') {
-                    // 전체 버튼 클릭 시 검색어는 유지하되 국가만 초기화
-                    loadProducts(0, search, sort, sortOrder, '전체');
-                  } else {
-                    // 특정 국가 버튼 클릭 시 검색어는 유지하되 국가 필터 추가
-                    loadProducts(0, search, sort, sortOrder, country.name);
-                  }
+                  loadProducts(0, search, sort, sortOrder, country.countryId);
                 }}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 hover:shadow-lg ${country.color} text-white ${selectedCountry === country.name ? 'ring-2 ring-black ring-opacity-80 shadow-lg' : ''}`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 hover:shadow-lg ${country.color} text-white ${selectedCountryId === country.countryId ? 'ring-2 ring-black ring-opacity-80 shadow-lg' : ''}`}
               >
                 <span className="text-lg">{country.flag}</span>
                 <span>{country.name}</span>
@@ -796,7 +781,7 @@ const CommerceList = () => {
               {!search && (
                 <div className="mt-4">
                   <button
-                    onClick={() => loadProducts(0, '', sort, sortOrder, selectedCountry)}
+                    onClick={() => loadProducts(0, '', sort, sortOrder, selectedCountryId)}
                     className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg transition-all duration-300 hover:scale-105"
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

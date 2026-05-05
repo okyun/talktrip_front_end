@@ -101,6 +101,25 @@ export const getOrderPurchaseStatsTop3 = async ({ windowStartTime, onlyCurrentWi
   };
 };
 
+/** DAU — 특정 일 (date: yyyy-MM-dd, 생략 시 서버 오늘) */
+export const getAdminDauDaily = async (dateStr) => {
+  const params = new URLSearchParams();
+  if (dateStr) {
+    params.append('date', dateStr);
+  }
+  const qs = params.toString();
+  const url = qs ? `/api/admin/dau/daily?${qs}` : '/api/admin/dau/daily';
+  const response = await axiosInstance.get(url);
+  return response?.data ?? response;
+};
+
+/** DAU — 기간(시작·종료 포함, 서버 최대 120일) */
+export const getAdminDauRange = async (start, end) => {
+  const params = new URLSearchParams({ start, end });
+  const response = await axiosInstance.get(`/api/admin/dau/range?${params.toString()}`);
+  return response?.data ?? response;
+};
+
 // 관리자 상품 목록 조회 (기본)
 export const getAdminProducts = async (params = {}) => {
   try {

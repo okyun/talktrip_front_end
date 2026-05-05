@@ -10,9 +10,9 @@ const AdminMenuLink = ({ to, children, className }) => {
   const { accessToken, role } = loginState;
   const isLogin = !!accessToken;
   const normalizedRole = role ? role.toString().trim().toLowerCase() : '';
-  const isAdminRole = role === 'A' || role === 'A' || role === 'ADMIN' || role === 'admin' || 
+  const isAdminRole = role === 'A' || role === 'S' || role === 'ADMIN' || role === 'admin' ||
                      role === 1 || role === '1' || role === 'ROLE_ADMIN' || role === 'role_admin' ||
-                     normalizedRole === 'a' || normalizedRole === 'admin' || normalizedRole === 'role_admin';
+                     normalizedRole === 'a' || normalizedRole === 's' || normalizedRole === 'admin' || normalizedRole === 'role_admin';
   
   const [showMessagePopup, setShowMessagePopup] = useState(false);
 

@@ -16,6 +16,8 @@ const FloatingChatIcon = () => {
   const subscriptionsRef = useRef(new Set());
   const lastLoggedUnreadCountRef = useRef(null);
   const unreadFetchSeqRef = useRef(0);
+  /** 채팅 API 실패 시 폴링 간격 백오프(서버 미기동일 때 Vite 프록시 로그 폭주 방지) */
+  const unreadPollFailuresRef = useRef(0);
   /** cleanup에서 deactivate() 호출 시 true — 채팅 페이지 이동 등 정상 종료와 비정상 끊김 로그 구분 */
   const intentionalDisconnectRef = useRef(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
@@ -61,7 +63,10 @@ const FloatingChatIcon = () => {
     }
   };
 
-  // 안 읽은 메시지 개수 가져오기
+  /**
+   * 안 읽은 메시지 개수 가져오기
+   * @returns {Promise<boolean>} 성공 여부 (폴링 백오프용)
+   */
   const fetchUnreadCount = async () => {
     try {
       const seq = ++unreadFetchSeqRef.current;
@@ -71,7 +76,7 @@ const FloatingChatIcon = () => {
       if (!userId) {
         debugLog('로그인 사용자 ID가 없어 미읽음 수 조회를 건너뜁니다.');
         setUnreadCount(0);
-        return;
+        return true;
       }
 
       // ChatPage와 동일한 기준으로 "미읽음"을 계산하기 위해 채팅방 목록에서 notReadMessageCount를 합산
@@ -138,12 +143,20 @@ const FloatingChatIcon = () => {
         );
         lastLoggedUnreadCountRef.current = nextCount;
       }
+      return true;
     } catch (error) {
-      console.error('안 읽은 메시지 개수 가져오기 실패:', error);
-      console.error('에러 상세:', error.response?.data);
-      console.error('에러 상태:', error.response?.status);
-      // 에러 발생 시 기본값 사용
+      const noResponse = error.response == null;
+      if (import.meta.env.DEV && noResponse) {
+        console.warn(
+          '[FloatingChatIcon] 채팅 API에 연결할 수 없습니다(8090 미기동 등). 미읽음 폴링 간격을 늘립니다.',
+        );
+      } else {
+        console.error('안 읽은 메시지 개수 가져오기 실패:', error);
+        console.error('에러 상세:', error.response?.data);
+        console.error('에러 상태:', error.response?.status);
+      }
       setUnreadCount(0);
+      return false;
     }
   };
 
@@ -167,7 +180,8 @@ const FloatingChatIcon = () => {
 
         const client = new Client({
           webSocketFactory: () => socket,
-          reconnectDelay: 5000,
+          /* 서버 미기동 시 SockJS /ws/info 재시도가 잦으면 Vite 터미널이 ECONNREFUSED로 도배됨 → 간격 완화 */
+          reconnectDelay: import.meta.env.DEV ? 30_000 : 5000,
           heartbeatIncoming: 4000,
           heartbeatOutgoing: 4000,
           connectHeaders: makeConnectHeaders(),
@@ -256,21 +270,41 @@ const FloatingChatIcon = () => {
     };
   }, [isLogin, accessToken, location.pathname]);
 
-  // 미읽음 수는 라우트 변경/주기적으로 최신화 (배지 계속 켜짐 방지)
+  // 미읽음 수는 라우트 변경/주기적으로 최신화 (배지 계속 켜짐 방지). 실패 시 백오프로 프록시 로그 스팸 완화.
   useEffect(() => {
     if (!isLogin) {
       setUnreadCount(0);
       return;
     }
-    // 라우트가 바뀔 때마다 즉시 한번 갱신
-    fetchUnreadCount();
+    let cancelled = false;
+    let timerId;
 
-    // 백그라운드에서 주기적으로 갱신 (읽음 처리/서버 상태 반영)
-    const intervalId = setInterval(() => {
-      fetchUnreadCount();
-    }, 15000);
+    const schedule = (delayMs) => {
+      clearTimeout(timerId);
+      timerId = setTimeout(run, delayMs);
+    };
 
-    return () => clearInterval(intervalId);
+    const run = async () => {
+      if (cancelled) return;
+      const ok = await fetchUnreadCount();
+      if (cancelled) return;
+      if (ok) {
+        unreadPollFailuresRef.current = 0;
+        schedule(15_000);
+      } else {
+        unreadPollFailuresRef.current = Math.min(unreadPollFailuresRef.current + 1, 8);
+        const delay = Math.min(30_000 * unreadPollFailuresRef.current, 300_000);
+        schedule(delay);
+      }
+    };
+
+    unreadPollFailuresRef.current = 0;
+    run();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timerId);
+    };
   }, [isLogin, accessToken, location.pathname]);
 
   // 비로그인 또는 chat/admin/chat 페이지에서는 아이콘 숨김

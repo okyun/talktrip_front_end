@@ -4,12 +4,13 @@ import axios from 'axios';
 // 로컬 개발 환경: Vite 프록시 사용 (상대 경로)
 // 프로덕션/Docker 환경: nginx가 80 포트에서 프록시
 const API_SERVER_HOST = import.meta.env.PROD ? "http://localhost:80" : "";
-// 채팅 서버(분리 서비스)
-// - 개발: Vite 프록시를 쓰면 ""(상대경로)로도 동작 가능
-// - 운영: chat-service를 별도 도메인/포트로 두는 경우 여기에 명시
-const CHAT_SERVER_HOST = import.meta.env.VITE_CHAT_SERVER_HOST
-	? import.meta.env.VITE_CHAT_SERVER_HOST
-	: (import.meta.env.PROD ? "http://localhost:8090" : "");
+// 채팅 REST: 개발에서는 항상 상대 경로 → Vite `vite.config.js` 의 `/api/chat` → localhost:8090 프록시.
+// (.env 에 VITE_CHAT_SERVER_HOST 로 8090 직접 지정 시 브라우저 CORS·프리플라이트 이슈가 나기 쉬움)
+const CHAT_SERVER_HOST = import.meta.env.DEV
+	? ""
+	: (import.meta.env.VITE_CHAT_SERVER_HOST
+		? import.meta.env.VITE_CHAT_SERVER_HOST
+		: (import.meta.env.PROD ? "http://localhost:8090" : ""));
 
 /** SockJS 엔드포인트 베이스. 로컬 Vite는 `/chat-ws` → vite.config 프록시로 8090 `/ws` */
 export function getChatSockJsUrl() {

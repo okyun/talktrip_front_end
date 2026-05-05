@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { getOrderPurchaseStatsTop3 } from '../../../common/api/adminApi';
+import { getProductDetail } from '../../../common/api/productApi';
+import { useCustomLogin } from '../../../common/hook/useCustomLogin';
 
 const AdminOrderPurchaseStatsPage = () => {
+  const { memberId } = useCustomLogin();
   const [data, setData] = useState([]);
   const [windowStartMs, setWindowStartMs] = useState(null);
   const [windowEndMs, setWindowEndMs] = useState(null);
@@ -14,6 +17,7 @@ const AdminOrderPurchaseStatsPage = () => {
   const limit = 3;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [productNameById, setProductNameById] = useState({});
 
   const load = async () => {
     try {
@@ -75,6 +79,48 @@ const AdminOrderPurchaseStatsPage = () => {
     });
     return aggregated.slice(0, limit);
   }, [data]);
+
+  // Top3에 필요한 상품명은 별도 조회로 보강한다(관리자 API가 아닌 공개 상품 상세 API 사용).
+  useEffect(() => {
+    const ids = Array.from(new Set(sortedData.map((x) => x?.productId).filter((v) => v != null && String(v).trim() !== '')));
+    if (ids.length === 0) return;
+
+    const missing = ids.filter((id) => productNameById[id] == null);
+    if (missing.length === 0) return;
+
+    let cancelled = false;
+
+    (async () => {
+      const entries = await Promise.all(
+        missing.map(async (id) => {
+          try {
+            const res = await getProductDetail(id, memberId);
+            const name =
+              res?.name ??
+              res?.productName ??
+              res?.title ??
+              res?.product?.name ??
+              null;
+            return [id, name];
+          } catch (e) {
+            console.error('상품명 조회 실패:', id, e);
+            return [id, null];
+          }
+        }),
+      );
+
+      if (cancelled) return;
+      setProductNameById((prev) => {
+        const next = { ...prev };
+        for (const [id, name] of entries) next[id] = name;
+        return next;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sortedData, memberId]);
 
   const windowOptions = useMemo(() => {
     const now = Date.now();
@@ -144,6 +190,7 @@ const AdminOrderPurchaseStatsPage = () => {
                 <tr>
                   <th className="px-3 py-2 text-left">순위</th>
                   <th className="px-3 py-2 text-left">상품 ID</th>
+                  <th className="px-3 py-2 text-left">상품명</th>
                   <th className="px-3 py-2 text-right">구매 수</th>
                   <th className="px-3 py-2 text-left">윈도우</th>
                 </tr>
@@ -156,6 +203,9 @@ const AdminOrderPurchaseStatsPage = () => {
                   >
                     <td className="px-3 py-2 text-gray-800">#{idx + 1}</td>
                     <td className="px-3 py-2 text-gray-800">{item.productId}</td>
+                    <td className="px-3 py-2 text-gray-800">
+                      {productNameById[item.productId] ?? <span className="text-gray-400">-</span>}
+                    </td>
                     <td className="px-3 py-2 text-right text-gray-800">{Number(item.purchaseCount || 0).toLocaleString()}</td>
                     <td className="px-3 py-2 text-gray-700 text-xs">
                       {item.windowStart ? new Date(item.windowStart).toLocaleTimeString() : '-'} ~ {item.windowEnd ? new Date(item.windowEnd).toLocaleTimeString() : '-'}

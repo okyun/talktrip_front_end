@@ -34,9 +34,9 @@ const AdminProtectedRoute = ({ children }) => {
 
   // role 체크 - 더 유연하게 확인 (문자열, 숫자, 대소문자 모두 고려)
   const normalizedRole = role ? role.toString().trim().toLowerCase() : '';
-  const isAdminRole = role === 'A' || role === 'A' || role === 'ADMIN' || role === 'admin' || 
+  const isAdminRole = role === 'A' || role === 'S' || role === 'ADMIN' || role === 'admin' ||
                      role === 1 || role === '1' || role === 'ROLE_ADMIN' || role === 'role_admin' ||
-                     normalizedRole === 'a' || normalizedRole === 'admin' || normalizedRole === 'role_admin';
+                     normalizedRole === 'a' || normalizedRole === 's' || normalizedRole === 'admin' || normalizedRole === 'role_admin';
   
   console.log('normalizedRole:', normalizedRole);
   console.log('isAdminRole:', isAdminRole);

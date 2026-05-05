@@ -38,9 +38,9 @@ const Header = () => {
   
   // role 체크를 더 유연하게 (문자열, 숫자, 대소문자 모두 고려)
   const normalizedRole = role ? role.toString().trim().toLowerCase() : '';
-  const isAdminRole = role === 'A' || role === 'A' || role === 'ADMIN' || role === 'admin' || 
+  const isAdminRole = role === 'A' || role === 'S' || role === 'ADMIN' || role === 'admin' ||
                      role === 1 || role === '1' || role === 'ROLE_ADMIN' || role === 'role_admin' ||
-                     normalizedRole === 'a' || normalizedRole === 'admin' || normalizedRole === 'role_admin';
+                     normalizedRole === 'a' || normalizedRole === 's' || normalizedRole === 'admin' || normalizedRole === 'role_admin';
   const isAdminUser = isLogin && isAdminRole;
 
   // 메뉴 클릭 핸들러 - 현재 위치와 같은 메뉴 클릭 시 새로고침
@@ -140,6 +140,12 @@ const Header = () => {
                 className="text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300"
               >
                 오픈채팅
+              </AdminMenuLink>
+              <AdminMenuLink
+                to="/admin/dau"
+                className="text-gray-700 hover:text-blue-600 font-medium transition-colors duration-300"
+              >
+                DAU
               </AdminMenuLink>
             </>
           ) : (

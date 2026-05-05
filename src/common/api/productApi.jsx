@@ -11,8 +11,10 @@ export const getProductList = async (params = {}) => {
     searchParams.append('sort', params.sort || 'updatedAt');
     searchParams.append('sort', params.sortOrder || 'desc');
     
-    // 국가 필터 추가 (전체가 아닌 경우에만)
-    if (params.country && params.country !== '전체') {
+    // 국가: ISO country_id 우선 (commerce 국가 버튼). 없으면 기존 countryName(한글 등).
+    if (params.countryId) {
+      searchParams.append('countryId', params.countryId);
+    } else if (params.country && params.country !== '전체') {
       searchParams.append('countryName', params.country);
     }
     
@@ -40,9 +42,11 @@ export const aiSearchProducts = async (query) => {
 };
 
 // 상품 상세 조회
-export const getProductDetail = async (productId) => {
+export const getProductDetail = async (productId, memberId) => {
   try {
-    const response = await axiosInstance.get(`/api/products/${productId}`);
+    const response = await axiosInstance.get(`/api/products/${productId}`, {
+      params: memberId != null ? { memberId } : undefined,
+    });
     return response.data;
   } catch (error) {
     console.error('상품 상세 조회 실패:', error);
@@ -57,6 +61,17 @@ export const toggleLike = async (productId) => {
     return response.data;
   } catch (error) {
     console.error('좋아요 토글 실패:', error);
+    throw error;
+  }
+};
+
+/** 목표 상태로 설정(멱등). UI가 다음 상태를 알 때 재시도에 유리 */
+export const setLikeDesiredState = async (productId, liked) => {
+  try {
+    const response = await axiosInstance.put(`/api/products/${productId}/like`, { liked });
+    return response.data;
+  } catch (error) {
+    console.error('좋아요 상태 설정 실패:', error);
     throw error;
   }
 };

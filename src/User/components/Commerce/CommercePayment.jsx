@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { getProductDetail } from '../../../common/api/productApi';
 import { createOrder as createOrderApi } from '../../../common/api/orderApi';
 import { getAuthHeaders } from '../../../common/util/jwtUtil';
+import { useCustomLogin } from '../../../common/hook/useCustomLogin';
 
 // 한국 시간 기준으로 날짜 문자열 생성 (공통 함수)
 const getKoreaDateString = (date) => {
@@ -162,6 +163,7 @@ const CommercePayment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { memberId } = useCustomLogin();
 
   const [product, setProduct] = useState(null);
   const [selectedDate, setSelectedDate] = useState('');
@@ -178,7 +180,7 @@ const CommercePayment = () => {
     
     try {
       console.log('상품 상세 조회 중...', id);
-      const response = await getProductDetail(id);
+      const response = await getProductDetail(id, memberId);
       console.log('상품 상세 응답:', response);
       
       // 백엔드 응답을 프론트엔드 구조로 변환 (CommerceDetail과 동일한 방식)
@@ -306,7 +308,7 @@ const CommercePayment = () => {
     if (id) {
       loadProductDetail();
     }
-  }, [id, location.search]);
+  }, [id, location.search, memberId]);
 
   // 날짜 변경 핸들러
   const handleDateChange = (newDate) => {

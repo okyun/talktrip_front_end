@@ -33,6 +33,7 @@ import AdminProfilePage from './Admin/pages/AdminProfile/AdminProfilePage';
 import AdminProductStatsPage from './Admin/pages/AdminStats/AdminProductStatsPage';
 import AdminProductClickStatsPage from './Admin/pages/AdminStats/AdminProductClickStatsPage';
 import AdminOrderPurchaseStatsPage from './Admin/pages/AdminStats/AdminOrderPurchaseStatsPage';
+import AdminDauPage from './Admin/pages/AdminStats/AdminDauPage';
 import { OrderNotificationToast } from './components/OrderNotificationToast';
 
 function App() {
@@ -125,6 +126,11 @@ function App() {
             <Route path="/admin/order-purchase-stats" element={
               <AdminProtectedRoute>
                 <AdminOrderPurchaseStatsPage />
+              </AdminProtectedRoute>
+            } />
+            <Route path="/admin/dau" element={
+              <AdminProtectedRoute>
+                <AdminDauPage />
               </AdminProtectedRoute>
             } />
           </Route>
