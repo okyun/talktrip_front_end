@@ -2,12 +2,33 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'node:path'
 
+/** Windows 등에서 `localhost` → `::1` 과 Java 리스닝 주소가 어긋나면 프록시가 `socket hang up` 낼 수 있어 IPv4 고정 권장 */
+// Windows에서 Docker Desktop/WSL이 8080을 점유하는 경우가 흔해 기본 포트를 18080으로 둡니다.
+// 필요 시 MONOLITH_API_TARGET 로 실행 환경에 맞게 덮어쓰세요.
+const monolithTarget = process.env.MONOLITH_API_TARGET || 'http://127.0.0.1:18080'
+const chatTarget = process.env.CHAT_API_TARGET || 'http://127.0.0.1:8090'
+/**
+ * 상품 카탈로그 → talktrip-product-service.
+ * - `tt/docker-compose.yml`: 호스트 **18086** → 컨테이너 8082 (기본값과 맞춤)
+ * - 로컬에서만 `./gradlew bootRun`(8082) 쓰면: `PRODUCT_API_TARGET=http://127.0.0.1:8082`
+ * - `tt/back_end/docker-compose.yml` 만 쓰면 상품 포트가 다를 수 있음 → PRODUCT_API_TARGET 로 맞추기
+ */
+const productApiTarget = process.env.PRODUCT_API_TARGET || 'http://127.0.0.1:18086'
+
 // https://vite.dev/config/
 export default defineConfig({
   // 루트(.env)로 환경변수를 모아둔 경우에도 front_end에서 정상 로드되게 함
   // (Vite는 VITE_ 접두사만 import.meta.env로 노출)
   envDir: resolve(__dirname, '..', '..'),
-  plugins: [react()],
+  plugins: [
+    react(),
+    {
+      name: 'talktrip-log-product-proxy',
+      configureServer() {
+        console.info(`\n[talktrip] /api/products → ${productApiTarget}  (바꾸려면 PRODUCT_API_TARGET)\n`)
+      },
+    },
+  ],
   server: {
     // npm script와 동일하게 고정: 포트가 바뀌면 HMR이 잘못된 포트로 붙을 수 있음
     port: 5173,
@@ -19,9 +40,28 @@ export default defineConfig({
       port: 5173,
     },
     proxy: {
+      /*
+       * 상품 카탈로그는 talktrip-product-service 로만 보냄.
+       * 또한 product-service는 모놀리스 JWT를 검증하지 않을 수 있으니(또는 시크릿이 다르니)
+       * 프론트가 붙이는 Authorization/Refresh-Token 헤더는 제거해서 403을 방지합니다.
+       */
+      '^/api/products': {
+        target: productApiTarget,
+        changeOrigin: true,
+        timeout: 120_000,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('authorization')
+            proxyReq.removeHeader('Authorization')
+            proxyReq.removeHeader('refresh-token')
+            proxyReq.removeHeader('Refresh-Token')
+          })
+          proxy.on('error', () => {})
+        },
+      },
       /* 채팅 REST는 talktrip-chatting-service(8090). `/api`보다 먼저 등록해야 매칭됨 */
       '/api/chat': {
-        target: 'http://localhost:8090',
+        target: chatTarget,
         changeOrigin: true,
       },
       /* 통계 API는 talktrip-stats-service(로컬 8082) */
@@ -41,12 +81,13 @@ export default defineConfig({
         changeOrigin: true,
       },
       '/api': {
-        target: 'http://localhost:8080',
+        target: monolithTarget,
         changeOrigin: true,
+        timeout: 120_000,
       },
       /* 채팅 STOMP만 8090 — 주문 알림 등 모놀리스 `/ws`는 아래 `/ws` 프록시 유지 */
       '/chat-ws': {
-        target: 'http://localhost:8090',
+        target: chatTarget,
         ws: true,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/chat-ws/, '/ws'),
@@ -61,7 +102,7 @@ export default defineConfig({
         },
       },
       '/ws': {
-        target: 'http://localhost:8080',
+        target: monolithTarget,
         ws: true,
         changeOrigin: true,
         configure: (proxy) => {
