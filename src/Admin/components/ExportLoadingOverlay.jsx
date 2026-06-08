@@ -5,6 +5,7 @@ const LABELS = {
   pdf: 'PDF 파일 생성 중...',
 };
 
+
 const ExportLoadingOverlay = ({ type = 'excel' }) => (
   <div
     className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[1px]"
