@@ -3,8 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getProductDetail } from '../../../common/api/productApi';
 import { createOrder as createOrderApi } from '../../../common/api/orderApi';
-import { getAuthHeaders } from '../../../common/util/jwtUtil';
 import { useCustomLogin } from '../../../common/hook/useCustomLogin';
+import WaitingOverlay from '../../../common/components/WaitingOverlay';
 
 // 한국 시간 기준으로 날짜 문자열 생성 (공통 함수)
 const getKoreaDateString = (date) => {
@@ -474,6 +474,15 @@ const CommercePayment = () => {
    };
 
   return (
+    <>
+      {isCreatingOrder && (
+        <WaitingOverlay
+          title="주문을 생성하고 있어요"
+          message="기다려주세요"
+          delayedMessage="주문이 많아 재고 확인에 시간이 걸리고 있어요. 잠시만 기다려주세요."
+          delayMs={1500}
+        />
+      )}
     <section className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">예약 정보 확인</h1>
@@ -613,6 +622,7 @@ const CommercePayment = () => {
         {isCreatingOrder ? '주문 생성 중...' : '주문 생성 및 결제'}
       </button>
     </section>
+    </>
   );
 };
 

@@ -2,6 +2,7 @@
 import { loadTossPayments, ANONYMOUS } from "@tosspayments/tosspayments-sdk";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import WaitingOverlay from "../../../common/components/WaitingOverlay";
 
 const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY;
 
@@ -16,6 +17,7 @@ const Checkout = () => {
   const [widgets, setWidgets] = useState(null);
   const [orderInfo, setOrderInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isPaying, setIsPaying] = useState(false);
   const [error, setError] = useState('');
 
   // URL 파라미터에서 주문 정보 가져오기
@@ -125,12 +127,12 @@ const Checkout = () => {
 
   if (loading) {
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
-        <div className="text-center py-8">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <p className="mt-2 text-gray-600">결제 정보를 불러오는 중...</p>
-        </div>
-      </div>
+      <WaitingOverlay
+        title="결제 정보를 불러오는 중"
+        message="기다려주세요"
+        delayedMessage="잠시만 기다려주시면 결제 화면이 표시됩니다."
+        delayMs={1500}
+      />
     );
   }
 
@@ -167,6 +169,19 @@ const Checkout = () => {
   }
 
   return (
+    <>
+      {(!ready || isPaying) && (
+        <WaitingOverlay
+          title={isPaying ? '결제를 진행하고 있어요' : '결제 화면을 준비하고 있어요'}
+          message="기다려주세요"
+          delayedMessage={
+            isPaying
+              ? '결제 창이 열리지 않으면 팝업 차단 설정을 확인해주세요.'
+              : '잠시만 기다려주시면 결제 수단을 선택할 수 있어요.'
+          }
+          delayMs={2000}
+        />
+      )}
     <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow">
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-6">
@@ -209,8 +224,9 @@ const Checkout = () => {
           <div id="agreement" className="mb-6" />
           <button
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-colors duration-200"
-            disabled={!ready}
+            disabled={!ready || isPaying}
             onClick={async () => {
+              setIsPaying(true);
               try {
                 await widgets.requestPayment({
                   orderId: orderInfo.orderId,
@@ -224,6 +240,7 @@ const Checkout = () => {
               } catch (error) {
                 console.error(error);
                 alert("결제 중 오류가 발생했습니다.");
+                setIsPaying(false);
               }
             }}
           >
@@ -232,6 +249,7 @@ const Checkout = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

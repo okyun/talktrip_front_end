@@ -1,5 +1,7 @@
 # React + Vite
 
+로컬 개발 시 프록시·환경 변수·포트 충돌은 **[docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md)** 를 참고하세요.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

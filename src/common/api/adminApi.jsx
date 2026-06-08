@@ -101,6 +101,70 @@ export const getOrderPurchaseStatsTop3 = async ({ windowStartTime, onlyCurrentWi
   };
 };
 
+// 관리자 구매 통계 — Redis ZINCRBY 버킷 합산 (임의 시간 범위)
+// GET /api/trending/products/purchases/range?startTimeMs=&endTimeMs=&limit=
+export const getOrderPurchaseStatsRange = async ({ startTimeMs, endTimeMs, limit = 3 } = {}) => {
+  const params = new URLSearchParams();
+  params.append('startTimeMs', String(startTimeMs));
+  params.append('endTimeMs', String(endTimeMs));
+  params.append('limit', String(limit));
+
+  const response = await axiosInstance.get(`/api/trending/products/purchases/range?${params.toString()}`);
+  const value = unwrapAxiosValue(response);
+
+  const mapItem = (item) => ({
+    productId: item?.productId ?? (item?.member != null ? Number(item.member) : null),
+    purchaseCount: Number(item?.purchaseCount ?? item?.score ?? 0),
+    createdAt: item?.createdAt ?? item?.eventTimeMs ?? null,
+  });
+
+  if (value && Array.isArray(value.items)) {
+    return {
+      items: value.items.map(mapItem),
+      startTimeMs: Number(value.startTimeMs),
+      endTimeMs: Number(value.endTimeMs),
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return { items: value.map(mapItem), startTimeMs, endTimeMs };
+  }
+
+  return { items: [], startTimeMs, endTimeMs };
+};
+
+// 관리자 상품 클릭 통계 — Redis ZINCRBY 버킷 합산 (임의 시간 범위)
+// GET /api/trending/products/clicks/range?startTimeMs=&endTimeMs=&limit=
+export const getProductClickStatsRange = async ({ startTimeMs, endTimeMs, limit = 3 } = {}) => {
+  const params = new URLSearchParams();
+  params.append('startTimeMs', String(startTimeMs));
+  params.append('endTimeMs', String(endTimeMs));
+  params.append('limit', String(limit));
+
+  const response = await axiosInstance.get(`/api/trending/products/clicks/range?${params.toString()}`);
+  const value = unwrapAxiosValue(response);
+
+  const mapItem = (item) => ({
+    productId: item?.productId ?? (item?.member != null ? Number(item.member) : null),
+    clickCount: Number(item?.clickCount ?? item?.score ?? 0),
+    clickedAt: item?.clickedAt ?? item?.eventTimeMs ?? null,
+  });
+
+  if (value && Array.isArray(value.items)) {
+    return {
+      items: value.items.map(mapItem),
+      startTimeMs: Number(value.startTimeMs),
+      endTimeMs: Number(value.endTimeMs),
+    };
+  }
+
+  if (Array.isArray(value)) {
+    return { items: value.map(mapItem), startTimeMs, endTimeMs };
+  }
+
+  return { items: [], startTimeMs, endTimeMs };
+};
+
 /** DAU — 특정 일 (date: yyyy-MM-dd, 생략 시 서버 오늘) */
 export const getAdminDauDaily = async (dateStr) => {
   const params = new URLSearchParams();

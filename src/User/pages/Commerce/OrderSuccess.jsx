@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import WaitingOverlay from "../../../common/components/WaitingOverlay";
 
 export function OrderSuccess() {
   const navigate = useNavigate();
@@ -64,13 +65,12 @@ export function OrderSuccess() {
 
   if (isLoading) {
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">결제 승인 중</h2>
-            <p className="text-gray-600">잠시만 기다려주세요...</p>
-          </div>
-        </div>
+      <WaitingOverlay
+        title="결제 승인 중"
+        message="기다려주세요"
+        delayedMessage="결제 확인에 시간이 걸리고 있어요. 페이지를 닫지 말고 잠시만 기다려주세요."
+        delayMs={2000}
+      />
     );
   }
 

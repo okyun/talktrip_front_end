@@ -18,6 +18,10 @@ export const createOrder = async (productId, orderData) => {
     if (error.response?.status === 401) {
       throw new Error('로그인이 필요합니다.');
     }
+
+    if (error.response?.status === 429) {
+      throw new Error(error.response?.data?.message || '요청이 많아 잠시 후 다시 시도해주세요.');
+    }
     
     if (error.response?.data?.message) {
       throw new Error(error.response.data.message);

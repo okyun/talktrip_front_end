@@ -14,6 +14,7 @@ const chatTarget = process.env.CHAT_API_TARGET || 'http://127.0.0.1:8090'
  * - `tt/back_end/docker-compose.yml` 만 쓰면 상품 포트가 다를 수 있음 → PRODUCT_API_TARGET 로 맞추기
  */
 const productApiTarget = process.env.PRODUCT_API_TARGET || 'http://127.0.0.1:18086'
+const trendingApiTarget = process.env.TRENDING_API_TARGET || 'http://127.0.0.1:18083'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -40,6 +41,15 @@ export default defineConfig({
       port: 5173,
     },
     proxy: {
+      /**
+       * 좋아요 API는 모놀리스(tt/back_end)의 LikeController에 있음.
+       * `/api/products/**`를 product-service로 보내는 규칙보다 먼저 등록해 404를 방지.
+       */
+      '^/api/products/.+/like$': {
+        target: monolithTarget,
+        changeOrigin: true,
+        timeout: 120_000,
+      },
       /*
        * 상품 카탈로그는 talktrip-product-service 로만 보냄.
        * 또한 product-service는 모놀리스 JWT를 검증하지 않을 수 있으니(또는 시크릿이 다르니)
@@ -78,6 +88,11 @@ export default defineConfig({
       },
       '/api/streams': {
         target: process.env.STATS_API_TARGET || 'http://localhost:18082',
+        changeOrigin: true,
+      },
+      /* Redis ZSET 트렌딩 조회 — talktrip-trending-service(18083) */
+      '/api/trending': {
+        target: trendingApiTarget,
         changeOrigin: true,
       },
       '/api': {
